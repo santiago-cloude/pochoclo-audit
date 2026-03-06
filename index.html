@@ -1247,7 +1247,7 @@ function renderCard(r,idx,ranges){
 }
 
 function renderBrandBody(r,ranges){
-  const{w1,w2,m1,m2}=r;
+  const{acc,w1,w2,m1,m2}=r;
   return`<div class="mg4">
     ${mc('Alcance (Mes)',m1?.reach,m2?.reach,'',false)}
     ${mc('CPM (Mes)',m1?.cpm,m2?.cpm,'$',true)}
@@ -1269,7 +1269,7 @@ function renderBrandBody(r,ranges){
 }
 
 function renderPerfBody(r,ranges,budBlock){
-  const{w1,w2,m1,m2,wD,mD}=r;
+  const{acc,w1,w2,m1,m2,wD,mD}=r;
   return`<div class="mg4">
     ${mc('Resultados (Mes)',m1?.result,m2?.result,'',false,m1?.rl||'')}
     ${mc('Costo x Resultado (Mes)',m1?.cpr,m2?.cpr,'$',true)}
