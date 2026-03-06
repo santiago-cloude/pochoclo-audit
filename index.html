@@ -766,7 +766,7 @@ function parseSheet(csv){
     const presStr=cl(cols[4]);
     const cuentaPub=cl(cols[7]);
     const obs=cl(cols[9]||'').toUpperCase();
-    if(!cuentaPub||!cuentaPub.includes('act_'))continue;
+    if(!cuentaPub||(!cuentaPub.includes('act_')&&!cuentaPub.includes('act=')))continue;
     if(!cliente)continue;
     if(seen.has(cuentaPub))continue;
     seen.add(cuentaPub);
@@ -831,7 +831,10 @@ function getRanges(){
 
 // ── META API ──
 async function fetchIns(accountId,since,until){
-  const id=accountId.startsWith('act_')?accountId:'act_'+accountId;
+  // Normalize account ID: act=123 → act_123, or prepend act_ if needed
+  let id = accountId;
+  if(id.startsWith('act=')) id = 'act_' + id.slice(4);
+  else if(!id.startsWith('act_')) id = 'act_' + id;
   const fields=['spend','impressions','clicks','reach','ctr','cpm','cpc','frequency','actions','action_values','cost_per_action_type','outbound_clicks','landing_page_views'].join(',');
   const url=`https://graph.facebook.com/${cfg.metaVersion}/${id}/insights?fields=${fields}&time_range={"since":"${since}","until":"${until}"}&level=account&access_token=${cfg.metaToken}`;
   const res=await fetch(url);const json=await res.json();
