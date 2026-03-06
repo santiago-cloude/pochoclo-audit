@@ -433,6 +433,47 @@
     padding:8px 12px; color:var(--orange); margin-top:8px;
   }
 
+  /* AI CONCLUSION */
+  .ai-conclusion-box {
+    background: linear-gradient(135deg, rgba(244,121,32,.04), rgba(27,42,74,.02));
+    border: 1.5px solid var(--orange-mid);
+    border-radius: 12px;
+    padding: 20px 22px;
+    margin-top: 4px;
+  }
+  .ai-loading { display:flex; align-items:center; gap:10px; padding:8px 0; }
+  .ai-section { margin-bottom:16px; }
+  .ai-section:last-child { margin-bottom:0; }
+  .ai-section-title {
+    font-family: var(--font-display); font-size:10px; font-weight:700;
+    letter-spacing:2px; text-transform:uppercase; color:var(--orange);
+    margin-bottom:10px; display:flex; align-items:center; gap:8px;
+  }
+  .ai-section-title::after { content:''; flex:1; height:1px; background:var(--orange-light); }
+  .ai-exec { font-size:13px; color:var(--navy); line-height:1.7; }
+  .ai-step {
+    display:flex; align-items:flex-start; gap:10px;
+    padding:8px 12px; border-radius:8px;
+    background:var(--surface2); border:1px solid var(--border);
+    margin-bottom:6px; font-size:13px; color:var(--navy); line-height:1.5;
+  }
+  .ai-step-num {
+    width:20px; height:20px; border-radius:50%; background:var(--orange);
+    color:#fff; font-size:10px; font-weight:800; display:flex; align-items:center;
+    justify-content:center; flex-shrink:0; font-family:var(--font-display);
+  }
+  .ai-alert {
+    background:var(--yellow-bg); border:1px solid rgba(217,119,6,.25);
+    border-radius:8px; padding:10px 14px; font-size:13px;
+    color:var(--yellow); margin-bottom:6px; display:flex; gap:8px; align-items:flex-start;
+  }
+  .ai-opp {
+    background:var(--green-bg); border:1px solid rgba(22,163,74,.2);
+    border-radius:8px; padding:10px 14px; font-size:13px;
+    color:var(--green); margin-bottom:6px; display:flex; gap:8px; align-items:flex-start;
+  }
+  .ai-error { font-size:12px; color:var(--muted); font-style:italic; padding:8px 0; }
+
   /* FOOTER */
   .footer {
     text-align:center; padding:40px 24px 24px;
@@ -566,9 +607,17 @@
         <button class="btn btn-p" id="auditBtn" onclick="runAudit()">▶ Auditar Todas las Cuentas</button>
       </div>
     </div>
+    <div style="padding:10px 24px 0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+      <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12px;color:var(--muted);font-family:var(--font-display);font-weight:600;letter-spacing:.5px;">
+        <input type="checkbox" id="selectAll" onchange="toggleSelectAll(this)" style="width:15px;height:15px;cursor:pointer;accent-color:var(--orange);">
+        SELECCIONAR TODAS
+      </label>
+      <span id="selectedCount" style="font-size:11px;color:var(--muted);"></span>
+    </div>
     <table>
       <thead>
         <tr>
+          <th style="width:36px;"></th>
           <th>Cliente</th>
           <th>Cuenta publicitaria</th>
           <th>Objetivo</th>
@@ -791,7 +840,8 @@ function parseSheet(csv){
     const pres=parseFloat(presStr.replace(/[^0-9.]/g,''))||0;
     const obj=normalObj(obs,cliente);
     // Store campaign name filter for shared accounts
-    res.push({cliente,cuentaPub,inv_usd:inv,pres_ars:pres,objetivo:obj,obs,isShared,campaignFilter:isShared?cliente:null});
+    const moneda=cl(cols[10]||'').toUpperCase()||'ARS';
+    res.push({cliente,cuentaPub,inv_usd:inv,pres_ars:pres,objetivo:obj,obs,isShared,campaignFilter:isShared?cliente:null,moneda});
   }
   return res;
 }
@@ -821,16 +871,36 @@ function cl(s){return(s||'').trim().replace(/^["']|["']$/g,'').trim();}
 function renderAccTable(){
   const objLabel={ventas:'VENTAS',leads:'LEADS',branding:'BRANDING',ventas_leads:'VENTAS/LEADS',conversaciones:'CONV.',registros:'REGISTROS'};
   const objTag={ventas:'tv',leads:'tl',branding:'tb',ventas_leads:'tvl',conversaciones:'tv',registros:'tl'};
-  document.getElementById('accBody').innerHTML=accounts.map(a=>{
+  document.getElementById('accBody').innerHTML=accounts.map((a,i)=>{
     const tc=objTag[a.objetivo]||'tu';
+    const safeId='acc_cb_'+i;
     return`<tr>
-      <td><strong style="color:var(--navy)">${a.cliente}</strong></td>
+      <td><input type="checkbox" class="acc-cb" id="${safeId}" data-idx="${i}" checked onchange="updateSelectedCount()" style="width:15px;height:15px;cursor:pointer;accent-color:var(--orange);"></td>
+      <td><label for="${safeId}" style="cursor:pointer;"><strong style="color:var(--navy)">${a.cliente}</strong></label></td>
       <td style="font-size:11px;color:var(--muted);font-family:var(--font-mono)">${a.cuentaPub}</td>
       <td><span class="tag ${tc}">${objLabel[a.objetivo]||a.objetivo}</span></td>
       <td style="font-family:var(--font-mono)">USD ${fn(a.inv_usd)}</td>
-      <td style="font-family:var(--font-mono)">${a.pres_ars>0?'ARS '+fn(a.pres_ars):'—'}</td>
+      <td style="font-family:var(--font-mono)">${a.pres_ars>0?(a.moneda||'ARS')+' '+fn(a.pres_ars):'—'}</td>
     </tr>`;
   }).join('');
+  updateSelectedCount();
+}
+
+function toggleSelectAll(cb){
+  document.querySelectorAll('.acc-cb').forEach(c=>c.checked=cb.checked);
+  updateSelectedCount();
+}
+
+function updateSelectedCount(){
+  const total=document.querySelectorAll('.acc-cb').length;
+  const selected=document.querySelectorAll('.acc-cb:checked').length;
+  document.getElementById('selectedCount').textContent=`${selected} de ${total} seleccionadas`;
+  document.getElementById('selectAll').checked=selected===total;
+  document.getElementById('selectAll').indeterminate=selected>0&&selected<total;
+}
+
+function getSelectedAccounts(){
+  return Array.from(document.querySelectorAll('.acc-cb:checked')).map(cb=>accounts[parseInt(cb.dataset.idx)]);
 }
 
 // ── DATE RANGES ──
@@ -961,7 +1031,7 @@ function analyze(curr,prev,obj){
     }
   }
 
-  // 2. Ratio Inv/Fact (ventas, USD)
+  // 2. Ratio Inv/Fact (ventas ecommerce) / CPR+results variation (leads/branding)
   if(useObj==='ventas'&&curr.invFact!==null){
     const r=curr.invFact;
     let t,msg,badge2;
@@ -973,6 +1043,26 @@ function analyze(curr,prev,obj){
       detail:`${msg}. Inversión: $${curr.spend.toFixed(2)} USD sobre $${curr.rv.toFixed(2)} USD en ventas generadas. ROAS: ${curr.roas?.toFixed(2)||'—'}x`,
       nums:[`Inversión: $${curr.spend.toFixed(2)} USD`,`Facturación: $${curr.rv.toFixed(2)} USD`,`Ratio: ${r.toFixed(1)}%`,`ROAS: ${curr.roas?.toFixed(2)||'—'}x`]
     });
+  } else if(useObj!=='ventas'&&curr.cpr>0&&prev.cpr>0){
+    const dCPR=pd(curr.cpr,prev.cpr);
+    const dRes=(curr.result>0&&prev.result>0)?pd(curr.result,prev.result):null;
+    if(dCPR!==null&&Math.abs(dCPR)>=5){
+      const bad=dCPR>0;
+      const t=bad?(dCPR>20?'critical':'warning'):'positive';
+      diags.push({type:t,title:`Costo por ${curr.rl}: ${bad?'subió':'bajó'} ${Math.abs(dCPR).toFixed(1)}%`,
+        detail:`Actual: $${curr.cpr.toFixed(2)} · Anterior: $${prev.cpr.toFixed(2)}. ${bad?'La eficiencia cayó.':'Mejora sostenida.'}`,
+        nums:[`Actual: $${curr.cpr.toFixed(2)}`,`Anterior: $${prev.cpr.toFixed(2)}`,`Δ: ${dCPR>0?'+':''}${dCPR.toFixed(1)}%`]
+      });
+      if(bad&&dCPR>20)actions.push(`Revisar segmentación y creativos — costo por ${curr.rl.toLowerCase()} deteriorado >20%`);
+    }
+    if(dRes!==null&&Math.abs(dRes)>=10){
+      const bad=dRes<0;
+      diags.push({type:bad?'warning':'positive',title:`Volumen de ${curr.rl}: ${bad?'bajó':'subió'} ${Math.abs(dRes).toFixed(1)}%`,
+        detail:`Actual: ${fn(curr.result)} · Anterior: ${fn(prev.result)} ${curr.rl}.`,
+        nums:[`Actual: ${fn(curr.result)}`,`Anterior: ${fn(prev.result)}`,`Δ: ${dRes>0?'+':''}${dRes.toFixed(1)}%`]
+      });
+      if(bad&&dRes<-20)actions.push(`Volumen de ${curr.rl.toLowerCase()} cayó >20% — revisar presupuesto y audiencias`);
+    }
   }
 
   // 3. Saturación
@@ -1061,12 +1151,14 @@ function calcPace(spent,budget){
 async function runAudit(){
   if(!accounts.length){showErr('auditErr','No hay cuentas cargadas.');return;}
   if(!cfg.metaToken){showErr('auditErr','Configurá el Meta Access Token primero.');return;}
+  const selected=getSelectedAccounts();
+  if(!selected.length){showErr('auditErr','Seleccioná al menos una cuenta para auditar.');return;}
   const btn=document.getElementById('auditBtn');
   btn.disabled=true;btn.textContent='⏳ Auditando...';
   setLoad(true,'Auditando campañas...','Iniciando');
-  const ranges=getRanges();const results=[];const total=accounts.length;
+  const ranges=getRanges();const results=[];const total=selected.length;
   for(let i=0;i<total;i++){
-    const acc=accounts[i];
+    const acc=selected[i];
     updStep(`[${i+1}/${total}] ${acc.cliente}`);updBar(((i+1)/total)*100);
     try{
       const cf = acc.campaignFilter || null;
@@ -1083,6 +1175,10 @@ async function runAudit(){
     }catch(e){results.push({acc,error:e.message});}
   }
   renderResults(results,ranges);
+  // Generate AI conclusions for each account after render
+  for(const r of results){
+    if(!r.error) generateAIConclusion(r);
+  }
   setLoad(false);btn.disabled=false;btn.textContent='↻ Re-Auditar Todo';
 }
 
@@ -1127,7 +1223,7 @@ function renderCard(r,idx,ranges){
   const rc={critical:'rc',warning:'rw',ok:'ro',unknown:'tu'};
   const objLabel={ventas:'VENTAS',leads:'LEADS',branding:'BRANDING',ventas_leads:'VENTAS/LEADS',conversaciones:'CONV.',registros:'REGISTROS'};
   const objTag={ventas:'tv',leads:'tl',branding:'tb',ventas_leads:'tvl',conversaciones:'tv',registros:'tl'};
-  const budBlock=acc.pres_ars>0&&m1?renderBudget(m1.spend,acc.pres_ars,m1,acc.objetivo):'';
+  const budBlock=acc.pres_ars>0&&m1?renderBudget(m1.spend,acc.pres_ars,m1,acc.objetivo,acc.moneda||'ARS'):'';
 
   return`<div class="acard" id="ac${idx}">
     <div class="ch" onclick="tc(this)">
@@ -1152,25 +1248,32 @@ function renderCard(r,idx,ranges){
 function renderBrandBody(r,ranges){
   const{w1,w2}=r;
   return`<div class="mg4">
-    ${mc('Inversión 7D',w1?.spend,w2?.spend,'$',false)}
-    ${mc('CPM 7D',w1?.cpm,w2?.cpm,'$',true)}
-    ${mc('Frecuencia 7D',w1?.freq,w2?.freq,'',true)}
-    ${mc('Alcance 7D',w1?.reach,w2?.reach,'',false)}
+    ${mc('Alcance (Mes)',m1?.reach,m2?.reach,'',false)}
+    ${mc('CPM (Mes)',m1?.cpm,m2?.cpm,'$',true)}
+    ${mc('Frecuencia (Mes)',m1?.freq,m2?.freq,'',true)}
+    ${mc('Inversión (Mes)',m1?.spend,m2?.spend,'$',false)}
   </div>
   <div class="cwrap" style="padding-bottom:4px;">${compTable(r,ranges)}</div>
-  <div style="padding:16px 24px 20px;"><div class="brnote" style="background:var(--navy-light);border-radius:10px;border:1px solid var(--navy-mid);">
-    <strong>Cuenta de Branding</strong>
-    Para cuentas de branding se monitorean CPM, frecuencia, alcance y eficiencia de inversión. El análisis de costo por resultado no aplica a este objetivo.
-  </div></div>`;
+  <div class="dwrap">
+    <div style="margin-top:8px;">
+      <div class="dst">Cerebro Estratégico · Conclusiones & Próximos Pasos</div>
+      <div id="ai_${acc.cuentaPub.replace(/[^a-z0-9]/gi,'_')}" class="ai-conclusion-box">
+        <div class="ai-loading">
+          <div class="lring" style="width:20px;height:20px;border-width:2px;"></div>
+          <span style="font-size:12px;color:var(--muted)">Generando análisis estratégico...</span>
+        </div>
+      </div>
+    </div>
+  </div>`;
 }
 
 function renderPerfBody(r,ranges,budBlock){
   const{w1,w2,wD,mD}=r;
   return`<div class="mg4">
-    ${mc('Inversión 7D',w1?.spend,w2?.spend,'$',false)}
-    ${mc('Costo x Resultado',w1?.cpr,w2?.cpr,'$',true)}
-    ${mc('CTR 7D',w1?.ctr,w2?.ctr,'%',true)}
-    ${mc('CPM 7D',w1?.cpm,w2?.cpm,'$',true)}
+    ${mc('Resultados (Mes)',m1?.result,m2?.result,'',false,m1?.rl||'')}
+    ${mc('Costo x Resultado (Mes)',m1?.cpr,m2?.cpr,'$',true)}
+    ${mc('Resultados (7D)',w1?.result,w2?.result,'',false,w1?.rl||'')}
+    ${mc('Costo x Resultado (7D)',w1?.cpr,w2?.cpr,'$',true)}
   </div>
   ${budBlock?`<div style="padding:14px 24px 0;">${budBlock}</div>`:''}
   <div class="cwrap">
@@ -1186,23 +1289,32 @@ function renderPerfBody(r,ranges,budBlock){
       <div class="dst">Diagnóstico Mensual · Mes actual vs período anterior</div>
       ${renderDiag(mD)}
     </div>
+    <div style="margin-top:24px;">
+      <div class="dst">Cerebro Estratégico · Conclusiones & Próximos Pasos</div>
+      <div id="ai_${acc.cuentaPub.replace(/[^a-z0-9]/gi,'_')}" class="ai-conclusion-box">
+        <div class="ai-loading">
+          <div class="lring" style="width:20px;height:20px;border-width:2px;"></div>
+          <span style="font-size:12px;color:var(--muted)">Generando análisis estratégico...</span>
+        </div>
+      </div>
+    </div>
   </div>`;
 }
 
-function mc(label,curr,prev,pfx='',lb=false){
-  if(curr===undefined||curr===null||curr===0)return`<div class="mcard mn"><div class="mlabel">${label}</div><div class="mval" style="color:var(--muted2)">—</div></div>`;
+function mc(label,curr,prev,pfx='',lb=false,sublabel=''){
+  if(curr===undefined||curr===null||curr===0)return`<div class="mcard mn"><div class="mlabel">${label}</div><div class="mval" style="color:var(--muted2)">—</div>${sublabel?`<div style="font-size:10px;color:var(--muted2)">${sublabel}</div>`:''}</div>`;
   let dc='dn',cc='mn',dh='';
-  if(prev&&prev>0){
+  if(prev!==undefined&&prev!==null&&prev>0){
     const d=((curr-prev)/prev)*100;
     const bad=lb?d>0:d<0;
     dc=bad?'dub':(lb?'ddg':'dug');
     cc=Math.abs(d)<5?'mn':(bad?(Math.abs(d)>15?'mcc':'mw'):'mp');
-    dh=`<div class="mdelta ${dc}">${d>0?'↑':'↓'} ${Math.abs(d).toFixed(1)}% vs anterior</div>`;
+    dh=`<div class="mdelta ${dc}">${d>0?'↑':'↓'} ${Math.abs(d).toFixed(1)}% · ant: ${pfx}${fn(prev)}</div>`;
   }
-  return`<div class="mcard ${cc}"><div class="mlabel">${label}</div><div class="mval">${pfx}${fn(curr)}</div>${dh}</div>`;
+  return`<div class="mcard ${cc}"><div class="mlabel">${label}</div><div class="mval">${pfx}${fn(curr)}</div>${dh}${sublabel?`<div style="font-size:10px;color:var(--muted2);margin-top:4px;">${sublabel}</div>`:''}</div>`;
 }
 
-function renderBudget(spentUSD,budgetARS,metrics,obj){
+function renderBudget(spentUSD,budgetARS,metrics,obj,moneda='ARS'){
   const p=calcPace(spentUSD,budgetARS);
   const useObj=obj==='ventas_leads'?'ventas':obj;
   let ratioBlock='';
@@ -1223,10 +1335,10 @@ function renderBudget(spentUSD,budgetARS,metrics,obj){
   }
   return`<div class="bgrid">
     <div class="bcard">
-      <div class="blabel">Inversión Mes (USD) vs Presupuesto (ARS)</div>
-      <div class="bnums"><div class="bmain">$${fn(spentUSD)}<span style="font-size:13px;font-weight:400;color:var(--muted);margin-left:4px;">USD</span></div></div>
-      <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">Presupuesto aprobado: <strong style="color:var(--navy)">ARS ${fn(budgetARS)}</strong></div>
-      <div class="currency-note">⚡ Monedas distintas (USD vs ARS) — se muestran por separado para evitar distorsión.<br>Proyección mensual: <strong>$${fn(p.projected)} USD</strong> · Día ${p.passed}/${p.days}</div>
+      <div class="blabel">Inversión Mes vs Presupuesto</div>
+      <div class="bnums"><div class="bmain">$${fn(spentUSD)}<span style="font-size:13px;font-weight:400;color:var(--muted);margin-left:4px;">${moneda}</span></div></div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">Presupuesto aprobado: <strong style="color:var(--navy)">${moneda} ${fn(budgetARS)}</strong></div>
+      <div class="currency-note">Proyección mensual: <strong>$${fn(p.projected)} ${moneda}</strong> · Día ${p.passed}/${p.days}</div>
     </div>
     ${ratioBlock||`<div class="bcard"><div class="blabel">Facturación</div><div style="color:var(--muted);font-size:13px;margin-top:8px;">Sin datos de facturación disponibles para este período.</div></div>`}
   </div>`;
@@ -1285,6 +1397,124 @@ function setLoad(a,t='',s=''){document.getElementById('loadingOverlay').classLis
 function updStep(s){document.getElementById('lstep').textContent=s;}
 function updBar(p){document.getElementById('lbar').style.width=p+'%';}
 function fn(n){if(n===null||n===undefined||isNaN(n))return'—';if(n>=1000000)return(n/1000000).toFixed(1)+'M';if(n>=10000)return(n/1000).toFixed(0)+'K';if(n>=1000)return(n/1000).toFixed(1)+'K';if(Number.isInteger(n)||n>=100)return Math.round(n).toLocaleString('es-AR');return parseFloat(n).toFixed(2);}
+async function generateAIConclusion(r){
+  const{acc,w1,w2,m1,m2,wD,mD}=r;
+  const elId='ai_'+acc.cuentaPub.replace(/[^a-z0-9]/gi,'_');
+  const el=document.getElementById(elId);
+  if(!el)return;
+
+  // Build context for Claude
+  const now=new Date();
+  const dayOfMonth=now.getDate();
+  const daysInMonth=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
+  const paceInfo=m1&&acc.pres_ars>0?`Inversión mes acumulada: $${m1.spend?.toFixed(0)||0} ${acc.moneda}. Presupuesto: ${acc.moneda} ${acc.pres_ars}. Día ${dayOfMonth}/${daysInMonth}.`:'Sin presupuesto definido.';
+  
+  const metrics={
+    objetivo: acc.objetivo,
+    moneda: acc.moneda||'ARS',
+    // Weekly
+    spend_7d: w1?.spend?.toFixed(2)||0, spend_7d_prev: w2?.spend?.toFixed(2)||0,
+    results_7d: w1?.result||0, results_7d_prev: w2?.result||0,
+    cpr_7d: w1?.cpr?.toFixed(2)||0, cpr_7d_prev: w2?.cpr?.toFixed(2)||0,
+    ctr_7d: w1?.ctr?.toFixed(2)||0, cpm_7d: w1?.cpm?.toFixed(2)||0,
+    freq_7d: w1?.freq?.toFixed(2)||0,
+    // Monthly
+    spend_mes: m1?.spend?.toFixed(2)||0, spend_mes_prev: m2?.spend?.toFixed(2)||0,
+    results_mes: m1?.result||0, results_mes_prev: m2?.result||0,
+    cpr_mes: m1?.cpr?.toFixed(2)||0, cpr_mes_prev: m2?.cpr?.toFixed(2)||0,
+    roas: m1?.roas?.toFixed(2)||null, inv_fact_ratio: m1?.invFact?.toFixed(1)||null,
+    result_label: m1?.rl||w1?.rl||'Resultados',
+  };
+  
+  const allDiags=[...(wD?.diags||[]),...(mD?.diags||[])];
+  const diagSummary=allDiags.map(d=>`[${d.type.toUpperCase()}] ${d.title}: ${d.detail}`).join('
+');
+
+  const prompt=`Sos un estratega senior de Paid Media analizando la cuenta publicitaria de Meta Ads de "${acc.cliente}".
+
+DATOS DE LA CUENTA:
+- Objetivo: ${acc.objetivo} (${metrics.result_label})
+- Moneda presupuesto: ${acc.moneda}
+- ${paceInfo}
+
+MÉTRICAS SEMANALES (últimos 7D vs 7D anteriores):
+- Inversión: $${metrics.spend_7d} vs $${metrics.spend_7d_prev}
+- ${metrics.result_label}: ${metrics.results_7d} vs ${metrics.results_7d_prev}
+- Costo por resultado: $${metrics.cpr_7d} vs $${metrics.cpr_7d_prev}
+- CTR: ${metrics.ctr_7d}% | CPM: $${metrics.cpm_7d} | Frecuencia: ${metrics.freq_7d}
+
+MÉTRICAS MENSUALES (mes actual acumulado vs mismo período mes anterior):
+- Inversión: $${metrics.spend_mes} vs $${metrics.spend_mes_prev}
+- ${metrics.result_label}: ${metrics.results_mes} vs ${metrics.results_mes_prev}
+- Costo por resultado: $${metrics.cpr_mes} vs $${metrics.cpr_mes_prev}
+${metrics.roas?`- ROAS: ${metrics.roas}x | Ratio inv/fact: ${metrics.inv_fact_ratio}%`:''}
+
+DIAGNÓSTICOS DETECTADOS:
+${diagSummary||'Sin anomalías detectadas.'}
+
+Respondé ÚNICAMENTE con un JSON con esta estructura exacta (sin markdown, sin backticks):
+{
+  "diagnostico": "1 párrafo ejecutivo de 2-3 oraciones resumiendo el estado real de la cuenta, siendo directo y honesto",
+  "proximos_pasos": ["acción concreta 1", "acción concreta 2", "acción concreta 3"],
+  "alerta_presupuesto": "alerta sobre ritmo de gasto vs presupuesto o null si está ok",
+  "oportunidad": "oportunidad detectada para escalar o potenciar o null si no hay"
+}`;
+
+  try{
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        messages: [{role:'user', content: prompt}]
+      })
+    });
+    const data = await response.json();
+    const text = data.content?.[0]?.text || '';
+    const parsed = JSON.parse(text.replace(/```json|```/g,'').trim());
+    renderAIConclusion(el, parsed);
+  } catch(e){
+    el.innerHTML=`<div class="ai-error">No se pudo generar el análisis estratégico (${e.message})</div>`;
+  }
+}
+
+function renderAIConclusion(el, ai){
+  let html='';
+  
+  // Diagnóstico ejecutivo
+  html+=`<div class="ai-section">
+    <div class="ai-section-title">Diagnóstico Ejecutivo</div>
+    <div class="ai-exec">${ai.diagnostico}</div>
+  </div>`;
+  
+  // Alerta presupuesto
+  if(ai.alerta_presupuesto){
+    html+=`<div class="ai-section">
+      <div class="ai-section-title">Alerta de Presupuesto</div>
+      <div class="ai-alert">⚡ ${ai.alerta_presupuesto}</div>
+    </div>`;
+  }
+  
+  // Próximos pasos
+  if(ai.proximos_pasos?.length){
+    html+=`<div class="ai-section">
+      <div class="ai-section-title">Próximos Pasos Esta Semana</div>
+      ${ai.proximos_pasos.map((s,i)=>`<div class="ai-step"><div class="ai-step-num">${i+1}</div><div>${s}</div></div>`).join('')}
+    </div>`;
+  }
+  
+  // Oportunidad
+  if(ai.oportunidad){
+    html+=`<div class="ai-section">
+      <div class="ai-section-title">Oportunidad Detectada</div>
+      <div class="ai-opp">✦ ${ai.oportunidad}</div>
+    </div>`;
+  }
+  
+  el.innerHTML=html;
+}
+
 function exportHTML(){const b=new Blob([document.documentElement.outerHTML],{type:'text/html'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`pochoclo-auditoria-${new Date().toISOString().split('T')[0]}.html`;a.click();}
 
 // ── PASSWORD ──
