@@ -835,7 +835,7 @@ async function fetchIns(accountId,since,until){
   let id = accountId;
   if(id.startsWith('act=')) id = 'act_' + id.slice(4);
   else if(!id.startsWith('act_')) id = 'act_' + id;
-  const fields=['spend','impressions','clicks','reach','ctr','cpm','cpc','frequency','actions','action_values','cost_per_action_type','outbound_clicks','landing_page_views'].join(',');
+  const fields=['spend','impressions','clicks','reach','ctr','cpm','cpc','frequency','actions','action_values','cost_per_action_type','outbound_clicks'].join(',');
   const url=`https://graph.facebook.com/${cfg.metaVersion}/${id}/insights?fields=${fields}&time_range={"since":"${since}","until":"${until}"}&level=account&access_token=${cfg.metaToken}`;
   const res=await fetch(url);const json=await res.json();
   if(json.error)throw new Error(json.error.message);
@@ -857,7 +857,7 @@ function extract(raw,obj){
   const regs=fA(acts,['complete_registration','offsite_conversion.fb_pixel_complete_registration']);
   const atc=fA(acts,['add_to_cart','offsite_conversion.fb_pixel_add_to_cart']);
   const ic=fA(acts,['initiate_checkout','offsite_conversion.fb_pixel_initiate_checkout']);
-  const lpv=ii(raw.landing_page_views)||0;
+  const lpv=0; // landing_page_views not available in this API version
   // For ventas/leads use both
   let result=0,rl='',rv=0,cpr=0;
   const useObj=obj==='ventas_leads'?'ventas':obj;
