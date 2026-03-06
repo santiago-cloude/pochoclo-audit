@@ -1408,6 +1408,14 @@ function setLoad(a,t='',s=''){document.getElementById('loadingOverlay').classLis
 function updStep(s){document.getElementById('lstep').textContent=s;}
 function updBar(p){document.getElementById('lbar').style.width=p+'%';}
 // sym(moneda) → currency symbol
+function fn(n){
+  if(n===null||n===undefined||isNaN(n))return'—';
+  return Math.round(n).toLocaleString('es-AR');
+}
+function fnD(n,d=2){
+  if(n===null||n===undefined||isNaN(n))return'—';
+  return parseFloat(n).toLocaleString('es-AR',{minimumFractionDigits:d,maximumFractionDigits:d});
+}
 function sym(m){
   if(!m)return '$';
   const u=m.toUpperCase();
