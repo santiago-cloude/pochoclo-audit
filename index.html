@@ -525,9 +525,22 @@
         <input type="text" id="metaVersion" value="v21.0"/>
       </div>
       <div class="fg full">
-        <label>URL CSV del Google Sheet (público)</label>
-        <input type="text" id="sheetUrl" placeholder="https://docs.google.com/spreadsheets/d/ID/export?format=csv&gid=0" value="https://docs.google.com/spreadsheets/d/1pdS69nS9ilBWDj824zQkCtCMYEE610zud-9jLmmD27w/export?format=csv&gid=0"/>
-        <p class="hint">Compartir como "cualquier persona con el link puede ver" → reemplazar /edit por /export?format=csv&amp;gid=0</p>
+        <label>Mes a Auditar</label>
+        <select id="selectedMonth">
+          <option value="Enero">Enero</option>
+          <option value="Febrero">Febrero</option>
+          <option value="Marzo">Marzo</option>
+          <option value="Abril">Abril</option>
+          <option value="Mayo">Mayo</option>
+          <option value="Junio">Junio</option>
+          <option value="Julio">Julio</option>
+          <option value="Agosto">Agosto</option>
+          <option value="Septiembre">Septiembre</option>
+          <option value="Octubre">Octubre</option>
+          <option value="Noviembre">Noviembre</option>
+          <option value="Diciembre">Diciembre</option>
+        </select>
+        <p class="hint">Se carga automáticamente la pestaña del mes seleccionado desde tu Sheet 2026_Control Campañas.</p>
       </div>
     </div>
     <div class="ibox">
@@ -590,20 +603,40 @@
 </div>
 
 <script>
-let cfg={metaToken:'',metaVersion:'v21.0',sheetUrl:'https://docs.google.com/spreadsheets/d/1pdS69nS9ilBWDj824zQkCtCMYEE610zud-9jLmmD27w/export?format=csv&gid=0'};
+const SHEET_ID = '1pdS69nS9ilBWDj824zQkCtCMYEE610zud-9jLmmD27w';
+const SHEET_MONTHS = {
+  'Enero':      '1658020499',
+  'Febrero':    '1085216953',
+  'Marzo':      '1262156068',
+  'Abril':      '1616079156',
+  'Mayo':       '858171348',
+  'Junio':      '832799373',
+  'Julio':      '2028521897',
+  'Agosto':     '956733042',
+  'Septiembre': '1958087441',
+  'Octubre':    '614549676',
+  'Noviembre':  '1339640635',
+  'Diciembre':  '2074392236',
+};
+const MONTH_NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const currentMonth = MONTH_NAMES[new Date().getMonth()];
+
+let cfg={metaToken:'',metaVersion:'v21.0',selectedMonth:currentMonth};
 let accounts=[];
 
 function loadConfig(){
   try{
     const s=localStorage.getItem('pm_audit_v1');
-    if(s){cfg={...cfg,...JSON.parse(s)};document.getElementById('metaToken').value=cfg.metaToken||'';document.getElementById('metaVersion').value=cfg.metaVersion||'v21.0';document.getElementById('sheetUrl').value=cfg.sheetUrl||'';}
-    if(cfg.metaToken&&cfg.sheetUrl){badge('meta',true,'Meta: Configurado');document.getElementById('setupPanel').classList.add('hidden');loadSheet();}
+    if(s){cfg={...cfg,...JSON.parse(s)};document.getElementById('metaToken').value=cfg.metaToken||'';document.getElementById('metaVersion').value=cfg.metaVersion||'v21.0';document.getElementById('selectedMonth').value=cfg.selectedMonth||currentMonth;}
+    if(cfg.metaToken){badge('meta',true,'Meta: Configurado');document.getElementById('setupPanel').classList.add('hidden');loadSheet();}
   }catch(e){}
 }
 function saveConfig(){
-  const t=document.getElementById('metaToken').value.trim(),v=document.getElementById('metaVersion').value.trim(),u=document.getElementById('sheetUrl').value.trim();
-  if(!t||!u){showErr('setupErr','Ingresá el Access Token y la URL del Sheet.');return;}
-  cfg={metaToken:t,metaVersion:v||'v21.0',sheetUrl:u};
+  const t=document.getElementById('metaToken').value.trim();
+  const v=document.getElementById('metaVersion').value.trim();
+  const m=document.getElementById('selectedMonth').value;
+  if(!t){showErr('setupErr','Ingresá el Access Token de Meta.');return;}
+  cfg={metaToken:t,metaVersion:v||'v21.0',selectedMonth:m};
   try{localStorage.setItem('pm_audit_v1',JSON.stringify(cfg));}catch(e){}
   badge('meta',true,'Meta: Configurado');
   document.getElementById('setupPanel').classList.add('hidden');
@@ -616,21 +649,13 @@ function showErr(id,m){const e=document.getElementById(id);e.textContent=m;e.cla
 
 // ── SHEET PARSER ──
 async function loadSheet(){
-  if(!cfg.sheetUrl)return;
   setLoad(true,'Cargando cuentas...','Conectando con Google Sheets');
   try{
-    // Extract spreadsheet ID from URL
-    const idMatch = cfg.sheetUrl.match(/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
-    if(!idMatch) throw new Error('URL inválida. Debe contener el ID del spreadsheet.');
-    const sheetId = idMatch[1];
+    const month = cfg.selectedMonth || currentMonth;
+    const gid = SHEET_MONTHS[month];
+    if(!gid) throw new Error('Mes no reconocido: ' + month);
     
-    // Extract gid from URL (default 0)
-    const gidMatch = cfg.sheetUrl.match(/gid=(\d+)/);
-    const gid = gidMatch ? gidMatch[1] : '0';
-    
-    // Use Google Sheets JSON API v4 (public sheets, no auth needed)
-    // This API works from local files without CORS issues
-    const jsonUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&gid=${gid}`;
+    const jsonUrl = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&gid=${gid}`;
     
     const resp = await fetch(jsonUrl);
     if(!resp.ok) throw new Error(`Error HTTP ${resp.status} al acceder al Sheet`);
@@ -646,7 +671,7 @@ async function loadSheet(){
     const csv = convertGvizToCSV(data);
     accounts=parseSheet(csv);
     if(!accounts.length)throw new Error('No se encontraron cuentas válidas. Verificá que la Col H tenga el act_xxx.');
-    badge('sheet',true,`Sheet: ${accounts.length} cuentas`);
+    badge('sheet',true,`${cfg.selectedMonth||currentMonth}: ${accounts.length} cuentas`);
     document.getElementById('accCount').textContent=`(${accounts.length})`;
     renderAccTable();
     document.getElementById('accPanel').style.display='block';
