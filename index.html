@@ -30,14 +30,14 @@
     --text: #1B2A4A;
     --muted: #6b7a96;
     --muted2: #9aa5bb;
-    --font-display: 'Syne', sans-serif;
-    --font-mono: 'DM Mono', monospace;
+    --font-display: 'Inter', sans-serif;
+    --font-mono: 'Inter', sans-serif;
     --radius: 12px;
     --shadow: 0 1px 3px rgba(27,42,74,.08), 0 4px 16px rgba(27,42,74,.05);
     --shadow-md: 0 2px 8px rgba(27,42,74,.1), 0 8px 24px rgba(27,42,74,.07);
   }
   * { margin:0; padding:0; box-sizing:border-box; }
-  body { background:var(--bg); color:var(--text); font-family:'Syne',sans-serif; min-height:100vh; }
+  body { background:var(--bg); color:var(--text); font-family:'Inter',sans-serif; min-height:100vh; }
 
   /* TOPBAR */
   .topbar {
@@ -162,11 +162,11 @@
   .fgrid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
   .fg { display:flex; flex-direction:column; gap:7px; }
   .fg.full { grid-column:1/-1; }
-  label { font-size:10px; letter-spacing:1.5px; text-transform:uppercase; color:var(--muted); font-weight:500; }
+  label { font-size:11px; letter-spacing:0.8px; text-transform:uppercase; font-weight:600; color:var(--muted); font-weight:500; }
   input, select {
     background:var(--surface2); border:1.5px solid var(--border);
     border-radius:8px; padding:11px 14px;
-    color:var(--text); font-family:var(--font-mono); font-size:13px;
+    color:var(--text); font-family:'Inter',sans-serif; font-size:13px;
     transition:border-color .2s, box-shadow .2s; outline:none;
   }
   input:focus, select:focus {
@@ -181,7 +181,7 @@
     font-size:12px; color:var(--muted); line-height:1.8; margin-top:12px;
   }
   .ibox strong { color:var(--navy); }
-  code { color:var(--orange); font-family:var(--font-mono); font-size:11px; }
+  code { color:var(--orange); font-family:'Inter',sans-serif; font-size:11px; }
 
   /* ACCOUNTS TABLE */
   .acc-panel { margin-bottom:24px; overflow:hidden; }
@@ -194,7 +194,7 @@
   table { width:100%; border-collapse:collapse; font-size:12px; }
   thead th {
     text-align:left; padding:10px 18px;
-    font-size:10px; letter-spacing:1.5px; text-transform:uppercase;
+    font-size:11px; letter-spacing:0.8px; text-transform:uppercase; font-weight:600;
     color:var(--muted); border-bottom:1px solid var(--border);
     background:var(--surface2); font-family:var(--font-display); font-weight:600;
   }
@@ -276,7 +276,7 @@
   .sc-red::before { background:var(--red); }
   .sc-yellow::before { background:var(--yellow); }
   .sc-green::before { background:var(--green); }
-  .sc-label { font-size:10px; letter-spacing:1.5px; text-transform:uppercase; color:var(--muted); margin-bottom:8px; font-family:var(--font-display); font-weight:600; }
+  .sc-label { font-size:11px; letter-spacing:0.8px; text-transform:uppercase; font-weight:600; color:var(--muted); margin-bottom:8px; font-family:var(--font-display); font-weight:600; }
   .sc-val { font-family:var(--font-display); font-size:26px; font-weight:800; color:var(--navy); }
   .sc-sub { font-size:11px; color:var(--muted); margin-top:4px; }
 
@@ -317,7 +317,7 @@
   .mcc::before { background:var(--red); }
   .mn::before { background:var(--border2); }
   .mlabel { font-size:10px; letter-spacing:1px; text-transform:uppercase; color:var(--muted); margin-bottom:6px; font-family:var(--font-display); font-weight:600; }
-  .mval { font-family:var(--font-display); font-size:20px; font-weight:800; color:var(--navy); margin-bottom:4px; }
+  .mval { font-family:'Inter',sans-serif; font-size:22px; font-weight:800; color:var(--navy); margin-bottom:4px; }
   .mdelta { font-size:11px; font-weight:500; }
   .dub { color:var(--red); }
   .ddg { color:var(--green); }
@@ -330,7 +330,7 @@
     background:var(--surface2); border:1.5px solid var(--border);
     border-radius:10px; padding:18px 20px;
   }
-  .blabel { font-size:10px; letter-spacing:1.5px; text-transform:uppercase; color:var(--muted); margin-bottom:10px; font-family:var(--font-display); font-weight:600; }
+  .blabel { font-size:11px; letter-spacing:0.8px; text-transform:uppercase; font-weight:600; color:var(--muted); margin-bottom:10px; font-family:var(--font-display); font-weight:600; }
   .bnums { display:flex; align-items:baseline; gap:6px; margin-bottom:10px; }
   .bmain { font-family:var(--font-display); font-size:22px; font-weight:800; color:var(--navy); }
   .bsub { font-size:13px; color:var(--muted); }
@@ -347,7 +347,7 @@
   .ctable { width:100%; border-collapse:collapse; font-size:12px; }
   .ctable th {
     text-align:right; padding:9px 12px;
-    font-size:10px; letter-spacing:1.5px; text-transform:uppercase;
+    font-size:11px; letter-spacing:0.8px; text-transform:uppercase; font-weight:600;
     color:var(--muted); border-bottom:2px solid var(--border);
     font-family:var(--font-display); font-weight:600;
   }
@@ -355,7 +355,7 @@
   .ctable td {
     padding:9px 12px; text-align:right;
     border-bottom:1px solid var(--border);
-    font-family:'Syne',sans-serif; font-size:13px; color:var(--text);
+    font-family:'Inter',sans-serif; font-size:13px; color:var(--text);
   }
   .ctable td:first-child { text-align:left; color:var(--muted); font-size:11px; }
   .ctable tr:last-child td { border-bottom:none; }
@@ -392,12 +392,12 @@
   .dtw { color:var(--yellow); }
   .dtp { color:var(--green); }
   .dti { color:var(--navy); }
-  .ddet { font-size:13px; color:var(--muted); line-height:1.7; font-family:'Syne',sans-serif; }
+  .ddet { font-size:13px; color:var(--muted); line-height:1.7; font-family:'Inter',sans-serif; }
   .dnums { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
   .dnum {
     font-size:11px; background:var(--surface2);
     border:1px solid var(--border); padding:3px 9px;
-    border-radius:4px; font-family:var(--font-mono); color:var(--navy);
+    border-radius:4px; font-family:'Inter',sans-serif; color:var(--navy);
   }
 
   /* ACTION BOX */
@@ -747,7 +747,7 @@ function showSheetSelector(sheetNames, filename){
     <div style="color:var(--navy);font-size:13px;">
       <div style="font-size:18px;margin-bottom:8px;">📊</div>
       <strong>${filename}</strong> — Seleccioná el mes a auditar:<br>
-      <select id="sheetNameSelector" onclick="event.stopPropagation()" style="margin-top:10px;padding:8px 14px;border:1.5px solid var(--orange);border-radius:8px;background:white;font-family:var(--font-mono);font-size:13px;color:var(--navy);cursor:pointer;">
+      <select id="sheetNameSelector" onclick="event.stopPropagation()" style="margin-top:10px;padding:8px 14px;border:1.5px solid var(--orange);border-radius:8px;background:white;font-family:'Inter',sans-serif;font-size:13px;color:var(--navy);cursor:pointer;">
         ${options}
       </select>
       <button onclick="event.stopPropagation();loadSelectedSheet('${filename}')" style="margin-left:8px;padding:8px 16px;background:var(--orange);color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:var(--font-display);font-size:13px;">
@@ -877,10 +877,10 @@ function renderAccTable(){
     return`<tr>
       <td><input type="checkbox" class="acc-cb" id="${safeId}" data-idx="${i}" checked onchange="updateSelectedCount()" style="width:15px;height:15px;cursor:pointer;accent-color:var(--orange);"></td>
       <td><label for="${safeId}" style="cursor:pointer;"><strong style="color:var(--navy)">${a.cliente}</strong></label></td>
-      <td style="font-size:11px;color:var(--muted);font-family:var(--font-mono)">${a.cuentaPub}</td>
+      <td style="font-size:11px;color:var(--muted);font-family:'Inter',sans-serif">${a.cuentaPub}</td>
       <td><span class="tag ${tc}">${objLabel[a.objetivo]||a.objetivo}</span></td>
-      <td style="font-family:var(--font-mono)">USD ${fn(a.inv_usd)}</td>
-      <td style="font-family:var(--font-mono)">${a.pres_ars>0?(a.moneda||'ARS')+' '+fn(a.pres_ars):'—'}</td>
+      <td style="font-family:'Inter',sans-serif">USD ${fn(a.inv_usd)}</td>
+      <td style="font-family:'Inter',sans-serif">${a.pres_ars>0?(a.moneda||'ARS')+' '+fn(a.pres_ars):'—'}</td>
     </tr>`;
   }).join('');
   updateSelectedCount();
@@ -1379,7 +1379,7 @@ function compTable(r,ranges){
     <th style="text-align:right;color:var(--muted2);">Mes Anterior</th>
   </tr></thead><tbody>
     ${rows.map(([l,a,b,c,d,p,lo])=>`<tr>
-      <td style="color:var(--navy);font-family:'Syne',sans-serif;font-weight:500;">${l}</td>
+      <td style="color:var(--navy);font-family:'Inter',sans-serif;font-weight:500;">${l}</td>
       <td style="text-align:right;">${cellWithDelta(a,b,p,lo)}</td>
       <td style="text-align:right;color:var(--muted);">${b?p+fn(b):'—'}</td>
       <td style="text-align:right;">${cellWithDelta(c,d,p,lo)}</td>
