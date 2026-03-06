@@ -1418,8 +1418,7 @@ function sym(m){
 // fn(n, moneda?) → full number with locale punctuation + currency symbol
 function fmoney(n, moneda){
   if(n===null||n===undefined||isNaN(n))return'—';
-  const s=sym(moneda);
-  return s+Math.round(n).toLocaleString('es-AR');
+  return sym(moneda)+Math.round(n).toLocaleString('es-AR');
 }
 // fn(n, moneda?) → abbreviated for KPI big display
 function fmoney(n, moneda){
@@ -1434,7 +1433,7 @@ function fnD(n,d=2){
   if(n===null||n===undefined||isNaN(n))return'—';
   return parseFloat(n).toLocaleString('es-AR',{minimumFractionDigits:d,maximumFractionDigits:d});
 }
-function currSymbol(moneda){
+function sym(moneda){
   const m=(moneda||'ARS').toUpperCase();
   if(m==='USD')return'USD ';
   if(m==='LIBRAS'||m==='GBP')return'£';
@@ -1443,12 +1442,12 @@ function currSymbol(moneda){
 function fmoney(n,moneda){
   if(n===null||n===undefined||isNaN(n))return'—';
   const _n=typeof n==='number'?n:parseFloat(n);
-  return currSymbol(moneda)+Math.round(_n).toLocaleString('es-AR');
+  return sym(moneda)+Math.round(_n).toLocaleString('es-AR');
 }
 function fmoney(n,moneda){
   if(n===null||n===undefined||isNaN(n))return'—';
   const _n=typeof n==='number'?n:parseFloat(n);
-  return currSymbol(moneda)+Math.round(_n).toLocaleString('es-AR');
+  return sym(moneda)+Math.round(_n).toLocaleString('es-AR');
 }
 async function generateAIConclusion(r){
   const{acc,w1,w2,m1,m2,wD,mD}=r;
