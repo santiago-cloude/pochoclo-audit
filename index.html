@@ -886,6 +886,7 @@ function renderAccTable(){
   updateSelectedCount();
 }
 
+function safeId(s){ return s.replace(/[^a-z0-9]/gi,'_'); }
 function toggleSelectAll(cb){
   document.querySelectorAll('.acc-cb').forEach(c=>c.checked=cb.checked);
   updateSelectedCount();
@@ -1257,7 +1258,7 @@ function renderBrandBody(r,ranges){
   <div class="dwrap">
     <div style="margin-top:8px;">
       <div class="dst">Cerebro Estratégico · Conclusiones & Próximos Pasos</div>
-      <div id="ai_${acc.cuentaPub.replace(/[^a-z0-9]/gi,'_')}" class="ai-conclusion-box">
+      <div id="ai_${safeId(acc.cuentaPub)}" class="ai-conclusion-box">
         <div class="ai-loading">
           <div class="lring" style="width:20px;height:20px;border-width:2px;"></div>
           <span style="font-size:12px;color:var(--muted)">Generando análisis estratégico...</span>
@@ -1291,7 +1292,7 @@ function renderPerfBody(r,ranges,budBlock){
     </div>
     <div style="margin-top:24px;">
       <div class="dst">Cerebro Estratégico · Conclusiones & Próximos Pasos</div>
-      <div id="ai_${acc.cuentaPub.replace(/[^a-z0-9]/gi,'_')}" class="ai-conclusion-box">
+      <div id="ai_${safeId(acc.cuentaPub)}" class="ai-conclusion-box">
         <div class="ai-loading">
           <div class="lring" style="width:20px;height:20px;border-width:2px;"></div>
           <span style="font-size:12px;color:var(--muted)">Generando análisis estratégico...</span>
@@ -1399,7 +1400,7 @@ function updBar(p){document.getElementById('lbar').style.width=p+'%';}
 function fn(n){if(n===null||n===undefined||isNaN(n))return'—';if(n>=1000000)return(n/1000000).toFixed(1)+'M';if(n>=10000)return(n/1000).toFixed(0)+'K';if(n>=1000)return(n/1000).toFixed(1)+'K';if(Number.isInteger(n)||n>=100)return Math.round(n).toLocaleString('es-AR');return parseFloat(n).toFixed(2);}
 async function generateAIConclusion(r){
   const{acc,w1,w2,m1,m2,wD,mD}=r;
-  const elId='ai_'+acc.cuentaPub.replace(/[^a-z0-9]/gi,'_');
+  const elId='ai_'+safeId(acc.cuentaPub);
   const el=document.getElementById(elId);
   if(!el)return;
 
