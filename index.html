@@ -1380,10 +1380,10 @@ function compTable(r,ranges,moneda='ARS'){
   </tr></thead><tbody>
     ${rows.map(([l,a,b,c,d,p,lo])=>`<tr>
       <td style="color:var(--navy);font-family:'Inter',sans-serif;font-weight:500;">${l}</td>
-      <td style="text-align:right;">${cellWithDelta(a,b,p,lo,acc?.moneda)}</td>
-      <td style="text-align:right;color:var(--muted);">${b?(p==='%'?fnD(b,2)+'%':p==='$'?fn(b,acc?.moneda):p+fn(b)):'—'}</td>
-      <td style="text-align:right;">${cellWithDelta(c,d,p,lo,acc?.moneda)}</td>
-      <td style="text-align:right;color:var(--muted);">${d?(p==='%'?fnD(d,2)+'%':p==='$'?fn(d,acc?.moneda):p+fn(d)):'—'}</td>
+      <td style="text-align:right;">${cellWithDelta(a,b,p,lo)}</td>
+      <td style="text-align:right;color:var(--muted);">${b?(p==='%'?fnD(b,2)+'%':p==='CUR'?fmoney(b,moneda):p+fn(b)):'—'}</td>
+      <td style="text-align:right;">${cellWithDelta(c,d,p,lo)}</td>
+      <td style="text-align:right;color:var(--muted);">${d?(p==='%'?fnD(d,2)+'%':p==='CUR'?fmoney(d,moneda):p+fn(d)):'—'}</td>
     </tr>`).join('')}
   </tbody></table>`;
 }
