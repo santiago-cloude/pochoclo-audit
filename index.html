@@ -1428,38 +1428,33 @@ async function generateAIConclusion(r){
   };
   
   const allDiags=[...(wD?.diags||[]),...(mD?.diags||[])];
-  const diagSummary=allDiags.map(d=>`[${d.type.toUpperCase()}] ${d.title}: ${d.detail}`).join('
-');
+  const diagSummary=allDiags.map(d=>'['+d.type.toUpperCase()+'] '+d.title+': '+d.detail).join(' | ');
 
-  const prompt=`Sos un estratega senior de Paid Media analizando la cuenta publicitaria de Meta Ads de "${acc.cliente}".
-
-DATOS DE LA CUENTA:
-- Objetivo: ${acc.objetivo} (${metrics.result_label})
-- Moneda presupuesto: ${acc.moneda}
-- ${paceInfo}
-
-MÉTRICAS SEMANALES (últimos 7D vs 7D anteriores):
-- Inversión: $${metrics.spend_7d} vs $${metrics.spend_7d_prev}
-- ${metrics.result_label}: ${metrics.results_7d} vs ${metrics.results_7d_prev}
-- Costo por resultado: $${metrics.cpr_7d} vs $${metrics.cpr_7d_prev}
-- CTR: ${metrics.ctr_7d}% | CPM: $${metrics.cpm_7d} | Frecuencia: ${metrics.freq_7d}
-
-MÉTRICAS MENSUALES (mes actual acumulado vs mismo período mes anterior):
-- Inversión: $${metrics.spend_mes} vs $${metrics.spend_mes_prev}
-- ${metrics.result_label}: ${metrics.results_mes} vs ${metrics.results_mes_prev}
-- Costo por resultado: $${metrics.cpr_mes} vs $${metrics.cpr_mes_prev}
-${metrics.roas?`- ROAS: ${metrics.roas}x | Ratio inv/fact: ${metrics.inv_fact_ratio}%`:''}
-
-DIAGNÓSTICOS DETECTADOS:
-${diagSummary||'Sin anomalías detectadas.'}
-
-Respondé ÚNICAMENTE con un JSON con esta estructura exacta (sin markdown, sin backticks):
-{
-  "diagnostico": "1 párrafo ejecutivo de 2-3 oraciones resumiendo el estado real de la cuenta, siendo directo y honesto",
-  "proximos_pasos": ["acción concreta 1", "acción concreta 2", "acción concreta 3"],
-  "alerta_presupuesto": "alerta sobre ritmo de gasto vs presupuesto o null si está ok",
-  "oportunidad": "oportunidad detectada para escalar o potenciar o null si no hay"
-}`;
+  const prompt = [
+    'Sos un estratega senior de Paid Media analizando la cuenta de Meta Ads de "' + acc.cliente + '".',
+    '',
+    'DATOS:',
+    '- Objetivo: ' + acc.objetivo + ' (' + metrics.result_label + ')',
+    '- Moneda: ' + acc.moneda,
+    '- ' + paceInfo,
+    '',
+    'SEMANA (7D vs 7D ant):',
+    '- Inversion: $' + metrics.spend_7d + ' vs $' + metrics.spend_7d_prev,
+    '- ' + metrics.result_label + ': ' + metrics.results_7d + ' vs ' + metrics.results_7d_prev,
+    '- Costo x resultado: $' + metrics.cpr_7d + ' vs $' + metrics.cpr_7d_prev,
+    '- CTR: ' + metrics.ctr_7d + '% | CPM: $' + metrics.cpm_7d + ' | Frecuencia: ' + metrics.freq_7d,
+    '',
+    'MES ACTUAL vs mismo periodo mes anterior:',
+    '- Inversion: $' + metrics.spend_mes + ' vs $' + metrics.spend_mes_prev,
+    '- ' + metrics.result_label + ': ' + metrics.results_mes + ' vs ' + metrics.results_mes_prev,
+    '- Costo x resultado: $' + metrics.cpr_mes + ' vs $' + metrics.cpr_mes_prev,
+    metrics.roas ? '- ROAS: ' + metrics.roas + 'x | Ratio inv/fact: ' + metrics.inv_fact_ratio + '%' : '',
+    '',
+    'DIAGNOSTICOS: ' + (diagSummary || 'Sin anomalias detectadas.'),
+    '',
+    'Responde SOLO con JSON valido (sin markdown ni backticks):',
+    '{"diagnostico":"1 parrafo ejecutivo honesto del estado de la cuenta","proximos_pasos":["accion 1","accion 2","accion 3"],"alerta_presupuesto":"alerta sobre ritmo de gasto o null","oportunidad":"oportunidad para escalar o null"}'
+  ].join('\n');
 
   try{
     const response = await fetch('https://api.anthropic.com/v1/messages', {
