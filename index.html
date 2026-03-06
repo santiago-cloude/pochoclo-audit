@@ -6,6 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Pochoclo Media · Auditoría Meta Ads</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root {
     --bg: #f4f6f9;
@@ -525,7 +526,7 @@
         <input type="text" id="metaVersion" value="v21.0"/>
       </div>
       <div class="fg full">
-        <label>Archivo CSV del Sheet (2026_Control Campañas)</label>
+        <label>Archivo Excel o CSV del Sheet (2026_Control Campañas)</label>
         <div id="csvDropZone" style="border:2px dashed var(--border);border-radius:8px;padding:20px;text-align:center;cursor:pointer;transition:all .2s;background:var(--surface2);"
           onclick="document.getElementById('csvFileInput').click()"
           ondragover="event.preventDefault();this.style.borderColor='var(--orange)'"
@@ -534,16 +535,16 @@
           <div id="csvZoneText" style="color:var(--muted);font-size:13px;">
             <div style="font-size:24px;margin-bottom:6px;">📄</div>
             <strong style="color:var(--navy)">Cliqueá o arrastrá el CSV acá</strong><br>
-            <span style="font-size:11px;">Archivo → Descargar → CSV desde Google Sheets</span>
+            <span style="font-size:11px;">Archivo → Descargar → Excel o CSV desde Google Sheets</span>
           </div>
         </div>
-        <input type="file" id="csvFileInput" accept=".csv" style="display:none" onchange="handleCSVFile(this.files[0])"/>
-        <p class="hint">Descargá el CSV del mes que querés auditar desde Google Sheets: <strong>Archivo → Descargar → Valores separados por comas</strong></p>
+        <input type="file" id="csvFileInput" accept=".csv,.xlsx,.xls" style="display:none" onchange="handleCSVFile(this.files[0])"/>
+        <p class="hint">Descargá el Excel del mes desde Google Sheets: <strong>Archivo → Descargar → Microsoft Excel (.xlsx)</strong> — también acepta CSV</p>
       </div>
     </div>
     <div class="ibox">
       <strong>Cómo cargar el CSV:</strong><br>
-      1. Abrí tu Google Sheet · 2. Seleccioná el mes (pestaña) · 3. <strong>Archivo → Descargar → Valores separados por comas (.csv)</strong><br>
+      1. Abrí tu Google Sheet · 2. Seleccioná el mes (pestaña) · 3. <strong>Archivo → Descargar → Microsoft Excel (.xlsx)</strong><br>
       4. Arrastrá el archivo acá o cliqueá para seleccionarlo · Podés actualizarlo cuando quieras repitiendo el proceso.
     </div>
     <div style="margin-top:16px;display:flex;gap:10px;">
@@ -655,14 +656,64 @@ function handleDrop(e){
   if(file) handleCSVFile(file);
 }
 
+let currentWorkbook = null;
+
 function handleCSVFile(file){
   if(!file) return;
-  const reader = new FileReader();
-  reader.onload = function(e){
-    const csv = e.target.result;
-    processCSV(csv, file.name);
-  };
-  reader.readAsText(file, 'UTF-8');
+  const ext = file.name.split('.').pop().toLowerCase();
+  
+  if(ext === 'xlsx' || ext === 'xls'){
+    const reader = new FileReader();
+    reader.onload = function(e){
+      try{
+        const data = new Uint8Array(e.target.result);
+        currentWorkbook = XLSX.read(data, {type: 'array'});
+        showSheetSelector(currentWorkbook.SheetNames, file.name);
+      }catch(err){
+        showErr('setupErr', '⚠ Error leyendo Excel: ' + err.message);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  } else {
+    const reader = new FileReader();
+    reader.onload = function(e){
+      processCSV(e.target.result, file.name);
+    };
+    reader.readAsText(file, 'UTF-8');
+  }
+}
+
+function showSheetSelector(sheetNames, filename){
+  // Update drop zone to show sheet selector
+  const zone = document.getElementById('csvZoneText');
+  const monthNames = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const currentMonthName = monthNames[new Date().getMonth()];
+  
+  const options = sheetNames.map(name => {
+    const isCurrent = name === currentMonthName;
+    return `<option value="${name}" ${isCurrent ? 'selected' : ''}>${name}</option>`;
+  }).join('');
+  
+  zone.innerHTML = `
+    <div style="color:var(--navy);font-size:13px;">
+      <div style="font-size:18px;margin-bottom:8px;">📊</div>
+      <strong>${filename}</strong> — Seleccioná el mes a auditar:<br>
+      <select id="sheetNameSelector" style="margin-top:10px;padding:8px 14px;border:1.5px solid var(--orange);border-radius:8px;background:white;font-family:var(--font-mono);font-size:13px;color:var(--navy);cursor:pointer;">
+        ${options}
+      </select>
+      <button onclick="loadSelectedSheet('${filename}')" style="margin-left:8px;padding:8px 16px;background:var(--orange);color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:var(--font-display);font-size:13px;">
+        Cargar Mes
+      </button>
+    </div>`;
+  document.getElementById('csvDropZone').style.borderColor = 'var(--orange)';
+}
+
+function loadSelectedSheet(filename){
+  if(!currentWorkbook) return;
+  const sheetName = document.getElementById('sheetNameSelector').value;
+  const worksheet = currentWorkbook.Sheets[sheetName];
+  const csv = XLSX.utils.sheet_to_csv(worksheet);
+  processCSV(csv, sheetName + ' · ' + filename);
 }
 
 function processCSV(csv, filename){
