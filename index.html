@@ -1011,7 +1011,7 @@ function extract(raw,obj){
 }
 
 // ── STRATEGIC BRAIN ──
-function analyze(curr,prev,obj,isMonthly=false){
+function analyze(curr,prev,obj,isMonthly=false,moneda='ARS'){
   const diags=[],actions=[];
   if(!curr||!prev)return{diags,actions,risk:'unknown'};
   const pd=(a,b)=>b>0?((a-b)/b)*100:null;
@@ -1024,8 +1024,8 @@ function analyze(curr,prev,obj,isMonthly=false){
       const bad=d>0;
       diags.push({type:bad?(d>25?'critical':'warning'):'positive',
         title:`Costo por ${curr.rl} ${bad?'aumentó':'bajó'} ${Math.abs(d).toFixed(1)}%`,
-        detail:`De $${fn(prev.cpr)} → $${fn(curr.cpr)}. ${bad?'La inversión perdió eficiencia en la conversión.':'Mejora de eficiencia sostenida.'}`,
-        nums:[`Actual: $${fn(curr.cpr)}`,`Anterior: $${fn(prev.cpr)}`,`Δ: ${d>0?'+':''}${d.toFixed(1)}%`]
+        detail:`De ${fn(prev.cpr,moneda)} → ${fn(curr.cpr,moneda)}. ${bad?'La inversión perdió eficiencia en la conversión.':'Mejora de eficiencia sostenida.'}`,
+        nums:[`Actual: ${fn(curr.cpr,moneda)}`,`Anterior: ${fn(prev.cpr,moneda)}`,`Δ: ${d>0?'+':''}${d.toFixed(1)}%`]
       });
       if(bad&&d>15)actions.push('Revisar y rotar creativos — posible fatiga o pérdida de relevancia');
       if(bad&&d>25)actions.push('Pausar conjuntos con peor CPR y reasignar presupuesto a los más eficientes');
@@ -1041,8 +1041,8 @@ function analyze(curr,prev,obj,isMonthly=false){
     else if(r<=20){t='warning';msg='Ratio preocupante (15–20%)';badge2='ATENCIÓN';actions.push('Optimizar campañas de mayor gasto para reducir ratio inversión/facturación');}
     else{t='critical';msg='Ratio crítico (>20%) — acción urgente';badge2='PROBLEMA';actions.push('URGENTE: Reducir inversión o revisar estrategia — ratio insostenible para el negocio');}
     diags.push({type:t,title:`Ratio Inversión/Facturación: ${r.toFixed(1)}% (${badge2})`,
-      detail:`${msg}. Inversión: $${fn(curr.spend)} sobre $${fn(curr.rv)} en ventas. ROAS: ${curr.roas?.toFixed(2)||'—'}x`,
-      nums:[`Inversión: $${fn(curr.spend)}`,`Facturación: $${fn(curr.rv)}`,`Ratio: ${r.toFixed(1)}%`,`ROAS: ${curr.roas?.toFixed(2)||'—'}x`]
+      detail:`${msg}. Inversión: ${fn(curr.spend,moneda)} sobre ${fn(curr.rv,moneda)} en ventas. ROAS: ${curr.roas?.toFixed(2)||'—'}x`,
+      nums:[`Inversión: ${fn(curr.spend,moneda)}`,`Facturación: ${fn(curr.rv,moneda)}`,`Ratio: ${r.toFixed(1)}%`,`ROAS: ${curr.roas?.toFixed(2)||'—'}x`]
     });
   } else if(isMonthly&&useObj!=='ventas'&&curr.cpr>0&&prev.cpr>0){
     const dCPR=pd(curr.cpr,prev.cpr);
@@ -1051,8 +1051,8 @@ function analyze(curr,prev,obj,isMonthly=false){
       const bad=dCPR>0;
       const t=bad?(dCPR>20?'critical':'warning'):'positive';
       diags.push({type:t,title:`Costo por ${curr.rl}: ${bad?'subió':'bajó'} ${Math.abs(dCPR).toFixed(1)}%`,
-        detail:`Actual: $${fn(curr.cpr)} · Anterior: $${fn(prev.cpr)}. ${bad?'La eficiencia cayó.':'Mejora sostenida.'}`,
-        nums:[`Actual: $${fn(curr.cpr)}`,`Anterior: $${fn(prev.cpr)}`,`Δ: ${dCPR>0?'+':''}${dCPR.toFixed(1)}%`]
+        detail:`Actual: ${fn(curr.cpr,moneda)} · Anterior: ${fn(prev.cpr,moneda)}. ${bad?'La eficiencia cayó.':'Mejora sostenida.'}`,
+        nums:[`Actual: ${fn(curr.cpr,moneda)}`,`Anterior: ${fn(prev.cpr,moneda)}`,`Δ: ${dCPR>0?'+':''}${dCPR.toFixed(1)}%`]
       });
       if(bad&&dCPR>20)actions.push(`Revisar segmentación y creativos — costo por ${curr.rl.toLowerCase()} deteriorado >20%`);
     }
@@ -1072,7 +1072,7 @@ function analyze(curr,prev,obj,isMonthly=false){
     if(dCTR!==null&&dCPM!==null&&dCTR<-15&&dCPM>10){
       diags.push({type:'critical',title:'Saturación de audiencia detectada',
         detail:`CTR bajó ${Math.abs(dCTR).toFixed(1)}% y CPM subió ${dCPM.toFixed(1)}% simultáneamente. Señal de presión en subasta con pérdida de relevancia.`,
-        nums:[`CTR: ${prev.ctr.toFixed(2)}% → ${curr.ctr.toFixed(2)}%`,`CPM: $${fn(prev.cpm)} → $${fn(curr.cpm)}`]
+        nums:[`CTR: ${prev.ctr.toFixed(2)}% → ${curr.ctr.toFixed(2)}%`,`CPM: ${fn(prev.cpm,moneda)} → ${fn(curr.cpm,moneda)}`]
       });
       actions.push('Ampliar o renovar audiencias — señales claras de saturación del segmento');
       actions.push('Rotar creativos — el contenido perdió relevancia frente a la audiencia actual');
@@ -1127,13 +1127,13 @@ function analyze(curr,prev,obj,isMonthly=false){
   // 6. CPC
   if(curr.cpc>0&&prev.cpc>0){
     const d=pd(curr.cpc,prev.cpc);
-    if(d!==null&&d>20)diags.push({type:'warning',title:`CPC subió ${d.toFixed(1)}%`,detail:'Costo por clic en alza. Posible mayor competencia en subasta o pérdida de quality score del anuncio.',nums:[`CPC actual: $${fn(curr.cpc)}`,`CPC anterior: $${fn(prev.cpc)}`]});
+    if(d!==null&&d>20)diags.push({type:'warning',title:`CPC subió ${d.toFixed(1)}%`,detail:'Costo por clic en alza. Posible mayor competencia en subasta o pérdida de quality score del anuncio.',nums:[`CPC actual: ${fn(curr.cpc,moneda)}`,`CPC anterior: ${fn(prev.cpc,moneda)}`]});
   }
 
   // 7. Inversión delta
   if(curr.spend>0&&prev.spend>0){
     const d=pd(curr.spend,prev.spend);
-    if(d!==null&&Math.abs(d)>30)diags.push({type:'info',title:`Inversión ${d>0?'aumentó':'redujo'} ${Math.abs(d).toFixed(1)}%`,detail:'Cambio significativo en el nivel de inversión. Verificar si fue planificado o un comportamiento inesperado.',nums:[`Actual: $${fn(curr.spend)}`,`Anterior: $${fn(prev.spend)}`,`Δ: ${d>0?'+':''}${d.toFixed(1)}%`]});
+    if(d!==null&&Math.abs(d)>30)diags.push({type:'info',title:`Inversión ${d>0?'aumentó':'redujo'} ${Math.abs(d).toFixed(1)}%`,detail:'Cambio significativo en el nivel de inversión. Verificar si fue planificado o un comportamiento inesperado.',nums:[`Actual: ${fn(curr.spend,moneda)}`,`Anterior: ${fn(prev.spend,moneda)}`,`Δ: ${d>0?'+':''}${d.toFixed(1)}%`]});
   }
 
   if(!diags.length)diags.push({type:'positive',title:'Sin anomalías detectadas',detail:'Las métricas se mantienen estables entre períodos. No se requiere acción inmediata.',nums:[]});
@@ -1171,7 +1171,7 @@ async function runAudit(){
       ]);
       const w1=extract(w1r,acc.objetivo),w2=extract(w2r,acc.objetivo);
       const m1=extract(m1r,acc.objetivo),m2=extract(m2r,acc.objetivo);
-      const wD=analyze(w1,w2,acc.objetivo,false),mD=analyze(m1,m2,acc.objetivo,true);
+      const wD=analyze(w1,w2,acc.objetivo,false,acc.moneda),mD=analyze(m1,m2,acc.objetivo,true,acc.moneda);
       results.push({acc,w1,w2,m1,m2,wD,mD,error:null});
     }catch(e){results.push({acc,error:e.message});}
   }
@@ -1195,7 +1195,7 @@ function renderResults(results,ranges){
     <div class="sc sc-orange"><div class="sc-label">Cuentas Auditadas</div><div class="sc-val">${results.length}</div><div class="sc-sub">Total en el sistema</div></div>
     <div class="sc sc-red"><div class="sc-label">Críticas</div><div class="sc-val" style="color:var(--red)">${crit}</div><div class="sc-sub">Requieren acción urgente</div></div>
     <div class="sc sc-yellow"><div class="sc-label">En Atención</div><div class="sc-val" style="color:var(--yellow)">${warn}</div><div class="sc-sub">Monitorear de cerca</div></div>
-    <div class="sc sc-green"><div class="sc-label">Inversión Mes (USD)</div><div class="sc-val" style="color:var(--green)">$${fn(totalSpend)}</div><div class="sc-sub">Suma de todas las cuentas</div></div>`;
+    <div class="sc sc-green"><div class="sc-label">Inversión Mes (USD)</div><div class="sc-val" style="color:var(--green)">${fn(totalSpend,moneda)}</div><div class="sc-sub">Suma de todas las cuentas</div></div>`;
   const order={critical:0,warning:1,ok:2,unknown:3};
   results.sort((a,b)=>(order[a.wD?.risk||'unknown']||3)-(order[b.wD?.risk||'unknown']||3));
   document.getElementById('auditCards').innerHTML=results.map((r,i)=>r.error?renderErr(r):renderCard(r,i,ranges)).join('');
@@ -1236,7 +1236,7 @@ function renderCard(r,idx,ranges){
         <span class="tag ${rc[risk]||'tu'}">${isBrand?'📊 Branding':rl[risk]||'—'}</span>
       </div>
       <div class="cr">
-        ${m1?`<span style="font-size:12px;color:var(--muted)">Mes: <strong style="color:var(--navy);font-family:var(--font-display)">$${fn(m1.spend)}</strong></span>`:''}
+        ${m1?`<span style="font-size:12px;color:var(--muted)">Mes: <strong style="color:var(--navy);font-family:var(--font-display)">${fn(m1.spend,moneda)}</strong></span>`:''}
         <span class="ci open" style="color:var(--orange);font-size:14px;">▼</span>
       </div>
     </div>
@@ -1250,11 +1250,11 @@ function renderBrandBody(r,ranges){
   const{acc,w1,w2,m1,m2}=r;
   return`<div class="mg4">
     ${mc('Alcance (Mes)',m1?.reach,m2?.reach,'',false)}
-    ${mc('CPM (Mes)',m1?.cpm,m2?.cpm,'$',true)}
+    ${mc('CPM (Mes)',m1?.cpm,m2?.cpm,'CUR',true,'',acc.moneda)}
     ${mc('Frecuencia (Mes)',m1?.freq,m2?.freq,'',true)}
-    ${mc('Inversión (Mes)',m1?.spend,m2?.spend,'$',false)}
+    ${mc('Inversión (Mes)',m1?.spend,m2?.spend,'CUR',false,'',acc.moneda)}
   </div>
-  <div class="cwrap" style="padding-bottom:4px;">${compTable(r,ranges)}</div>
+  <div class="cwrap" style="padding-bottom:4px;">${compTable(r,ranges,acc.moneda)}</div>
   <div class="dwrap">
     <div style="margin-top:8px;">
       <div class="dst">Cerebro Estratégico · Conclusiones & Próximos Pasos</div>
@@ -1272,14 +1272,14 @@ function renderPerfBody(r,ranges,budBlock){
   const{acc,w1,w2,m1,m2,wD,mD}=r;
   return`<div class="mg4">
     ${mc('Resultados (Mes)',m1?.result,m2?.result,'',false,m1?.rl||'')}
-    ${mc('Costo x Resultado (Mes)',m1?.cpr,m2?.cpr,'$',true)}
+    ${mc('Costo x Resultado (Mes)',m1?.cpr,m2?.cpr,'CUR',true,'',acc.moneda)}
     ${mc('Resultados (7D)',w1?.result,w2?.result,'',false,w1?.rl||'')}
-    ${mc('Costo x Resultado (7D)',w1?.cpr,w2?.cpr,'$',true)}
+    ${mc('Costo x Resultado (7D)',w1?.cpr,w2?.cpr,'CUR',true,'',acc.moneda)}
   </div>
   ${budBlock?`<div style="padding:14px 24px 0;">${budBlock}</div>`:''}
   <div class="cwrap">
     <div class="sdivider" style="margin-bottom:12px;">Comparación de Períodos</div>
-    ${compTable(r,ranges)}
+    ${compTable(r,ranges,acc.moneda)}
   </div>
   <div class="dwrap">
     <div style="margin-bottom:24px;">
@@ -1302,7 +1302,7 @@ function renderPerfBody(r,ranges,budBlock){
   </div>`;
 }
 
-function mc(label,curr,prev,pfx='',lb=false,sublabel=''){
+function mc(label,curr,prev,pfx='',lb=false,sublabel='',moneda='ARS'){
   if(curr===undefined||curr===null||curr===0)return`<div class="mcard mn"><div class="mlabel">${label}</div><div class="mval" style="color:var(--muted2)">—</div>${sublabel?`<div style="font-size:10px;color:var(--muted2)">${sublabel}</div>`:''}</div>`;
   let dc='dn',cc='mn',dh='';
   if(prev!==undefined&&prev!==null&&prev>0){
@@ -1310,9 +1310,9 @@ function mc(label,curr,prev,pfx='',lb=false,sublabel=''){
     const bad=lb?d>0:d<0;
     dc=bad?'dub':(lb?'ddg':'dug');
     cc=Math.abs(d)<5?'mn':(bad?(Math.abs(d)>15?'mcc':'mw'):'mp');
-    dh=`<div class="mdelta ${dc}">${d>0?'↑':'↓'} ${Math.abs(d).toFixed(1)}% · ant: ${pfx}${fn(prev)}</div>`;
+    const _mv=(v)=>pfx==='CUR'?fmoney(v,moneda):(pfx?pfx+fn(v):fn(v)); dh=`<div class="mdelta ${dc}">${d>0?'↑':'↓'} ${Math.abs(d).toFixed(1)}% · ant: ${_mv(prev)}</div>`;
   }
-  return`<div class="mcard ${cc}"><div class="mlabel">${label}</div><div class="mval">${pfx}${fn(curr)}</div>${dh}${sublabel?`<div style="font-size:10px;color:var(--muted2);margin-top:4px;">${sublabel}</div>`:''}</div>`;
+  return`<div class="mcard ${cc}"><div class="mlabel">${label}</div><div class="mval">${pfx==='CUR'?fmoney(curr,moneda):(pfx?pfx+fn(curr):fn(curr))}</div>${dh}${sublabel?`<div style="font-size:10px;color:var(--muted2);margin-top:4px;">${sublabel}</div>`:''}</div>`;
 }
 
 function renderBudget(spentUSD,budgetARS,metrics,obj,moneda='ARS'){
@@ -1331,32 +1331,32 @@ function renderBudget(spentUSD,budgetARS,metrics,obj,moneda='ARS'){
       <div class="bdet">
         <span>✓≤10% perfecto · ✓≤15% ok · ⚡15–20% atención · ⚠>20% problema</span>
       </div>
-      <div style="margin-top:8px;font-size:11px;color:var(--muted)">ROAS: <strong style="color:var(--navy)">${metrics.roas?.toFixed(2)||'—'}x</strong> · Ventas: <strong style="color:var(--navy)">$${fn(metrics.rv)}</strong></div>
+      <div style="margin-top:8px;font-size:11px;color:var(--muted)">ROAS: <strong style="color:var(--navy)">${metrics.roas?.toFixed(2)||'—'}x</strong> · Ventas: <strong style="color:var(--navy)">${fn(metrics.rv,moneda)}</strong></div>
     </div>`;
   }
   return`<div class="bgrid">
     <div class="bcard">
       <div class="blabel">Inversión Mes vs Presupuesto</div>
-      <div class="bnums"><div class="bmain">$${fn(spentUSD)}<span style="font-size:13px;font-weight:400;color:var(--muted);margin-left:4px;">${moneda}</span></div></div>
+      <div class="bnums"><div class="bmain">${fn(spentUSD,moneda)}<span style="font-size:13px;font-weight:400;color:var(--muted);margin-left:4px;">${moneda}</span></div></div>
       <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">Presupuesto aprobado: <strong style="color:var(--navy)">${moneda} ${fn(budgetARS)}</strong></div>
-      <div class="currency-note">Proyección mensual: <strong>$${fn(p.projected)} ${moneda}</strong> · Día ${p.passed}/${p.days}</div>
+      <div class="currency-note">Proyección mensual: <strong>${fn(p.projected,moneda)} ${moneda}</strong> · Día ${p.passed}/${p.days}</div>
     </div>
     ${ratioBlock||`<div class="bcard"><div class="blabel">Facturación</div><div style="color:var(--muted);font-size:13px;margin-top:8px;">Sin datos de facturación disponibles para este período.</div></div>`}
   </div>`;
 }
 
-function compTable(r,ranges){
+function compTable(r,ranges,moneda='ARS'){
   const{w1,w2,m1,m2}=r;
   const rl=w1?.rl||m1?.rl||'Resultados';
   const rows=[
-    ['Inversión',w1?.spend,w2?.spend,m1?.spend,m2?.spend,'$',false],
+    ['Inversión',w1?.spend,w2?.spend,m1?.spend,m2?.spend,'CUR',false],
     ['Impresiones',w1?.impressions,w2?.impressions,m1?.impressions,m2?.impressions,'',false],
     ['Clics',w1?.clicks,w2?.clicks,m1?.clicks,m2?.clicks,'',false],
     ['CTR',w1?.ctr,w2?.ctr,m1?.ctr,m2?.ctr,'%',true],
-    ['CPM',w1?.cpm,w2?.cpm,m1?.cpm,m2?.cpm,'$',true],
-    ['CPC',w1?.cpc,w2?.cpc,m1?.cpc,m2?.cpc,'$',true],
+    ['CPM',w1?.cpm,w2?.cpm,m1?.cpm,m2?.cpm,'CUR',true],
+    ['CPC',w1?.cpc,w2?.cpc,m1?.cpc,m2?.cpc,'CUR',true],
     ['Frecuencia',w1?.freq,w2?.freq,m1?.freq,m2?.freq,'',true],
-    ['Costo x Resultado',w1?.cpr,w2?.cpr,m1?.cpr,m2?.cpr,'$',true],
+    ['Costo x Resultado',w1?.cpr,w2?.cpr,m1?.cpr,m2?.cpr,'CUR',true],
     [rl,w1?.result,w2?.result,m1?.result,m2?.result,'',false],
   ];
   
@@ -1380,10 +1380,10 @@ function compTable(r,ranges){
   </tr></thead><tbody>
     ${rows.map(([l,a,b,c,d,p,lo])=>`<tr>
       <td style="color:var(--navy);font-family:'Inter',sans-serif;font-weight:500;">${l}</td>
-      <td style="text-align:right;">${cellWithDelta(a,b,p,lo)}</td>
-      <td style="text-align:right;color:var(--muted);">${b?p+fn(b):'—'}</td>
-      <td style="text-align:right;">${cellWithDelta(c,d,p,lo)}</td>
-      <td style="text-align:right;color:var(--muted);">${d?p+fn(d):'—'}</td>
+      <td style="text-align:right;">${cellWithDelta(a,b,p,lo,acc?.moneda)}</td>
+      <td style="text-align:right;color:var(--muted);">${b?(p==='%'?fnD(b,2)+'%':p==='$'?fn(b,acc?.moneda):p+fn(b)):'—'}</td>
+      <td style="text-align:right;">${cellWithDelta(c,d,p,lo,acc?.moneda)}</td>
+      <td style="text-align:right;color:var(--muted);">${d?(p==='%'?fnD(d,2)+'%':p==='$'?fn(d,acc?.moneda):p+fn(d)):'—'}</td>
     </tr>`).join('')}
   </tbody></table>`;
 }
@@ -1407,7 +1407,47 @@ function tc(h){const b=h.nextElementSibling,i=h.querySelector('.ci');b.classList
 function setLoad(a,t='',s=''){document.getElementById('loadingOverlay').classList.toggle('active',a);if(t)document.getElementById('ltext').textContent=t;if(s)document.getElementById('lstep').textContent=s;if(!a){document.getElementById('lbar').style.width='100%';setTimeout(()=>{document.getElementById('lbar').style.width='0%';},300);}}
 function updStep(s){document.getElementById('lstep').textContent=s;}
 function updBar(p){document.getElementById('lbar').style.width=p+'%';}
-function fn(n){if(n===null||n===undefined||isNaN(n))return'—';if(n>=1000000)return(n/1000000).toFixed(1)+'M';if(n>=10000)return(n/1000).toFixed(0)+'K';if(n>=1000)return(n/1000).toFixed(1)+'K';if(Number.isInteger(n)||n>=100)return Math.round(n).toLocaleString('es-AR');return parseFloat(n).toFixed(2);}
+// sym(moneda) → currency symbol
+function sym(m){
+  if(!m)return '$';
+  const u=m.toUpperCase();
+  if(u==='USD')return 'USD ';
+  if(u==='LIBRAS'||u==='GBP')return '£';
+  return '$'; // ARS default
+}
+// fn(n, moneda?) → full number with locale punctuation + currency symbol
+function fn(n,moneda){
+  if(n===null||n===undefined||isNaN(n))return'—';
+  const s=sym(moneda);
+  return s+Math.round(n).toLocaleString('es-AR');
+}
+// fn(n, moneda?) → abbreviated for KPI big display
+function fn(n,moneda){
+  if(n===null||n===undefined||isNaN(n))return'—';
+  const s=sym(moneda);
+  if(Math.abs(n)>=1000000)return s+(n/1000000).toFixed(1).replace('.',',')+'M';
+  if(Math.abs(n)>=1000)return s+Math.round(n/1000)+'K';
+  return s+Math.round(n).toLocaleString('es-AR');
+}
+// fnD(n, decimals) → with decimals, no currency
+function fnD(n,d=2){
+  if(n===null||n===undefined||isNaN(n))return'—';
+  return parseFloat(n).toLocaleString('es-AR',{minimumFractionDigits:d,maximumFractionDigits:d});
+}
+function currSymbol(moneda){
+  const m=(moneda||'ARS').toUpperCase();
+  if(m==='USD')return'USD ';
+  if(m==='LIBRAS'||m==='GBP')return'£';
+  return '$'; // ARS default
+}
+function fmoney(n,moneda){
+  if(n===null||n===undefined||isNaN(n))return'—';
+  return currSymbol(moneda)+fn(n);
+}
+function fmoney(n,moneda){
+  if(n===null||n===undefined||isNaN(n))return'—';
+  return currSymbol(moneda)+fn(n);
+}
 async function generateAIConclusion(r){
   const{acc,w1,w2,m1,m2,wD,mD}=r;
   const elId='ai_'+safeId(acc.cuentaPub);
