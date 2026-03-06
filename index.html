@@ -757,6 +757,18 @@ function parseSheet(csv){
     if(low.includes('cliente')||low.includes('cuenta')||low.includes('inversión')||low.includes('inversion')){hi=i;break;}
   }
   if(hi===-1)hi=3;
+  
+  // First pass: count how many clients share each act=
+  const actCount={};
+  for(let i=hi+1;i<lines.length;i++){
+    const cols=parseLine(lines[i]);
+    if(cols.length<8)continue;
+    const cuentaPub=cl(cols[7]);
+    if(!cuentaPub||(!cuentaPub.includes('act_')&&!cuentaPub.includes('act=')))continue;
+    actCount[cuentaPub]=(actCount[cuentaPub]||0)+1;
+  }
+  
+  // Second pass: build accounts, using cliente as unique key for shared act=
   const seen=new Set();const res=[];
   for(let i=hi+1;i<lines.length;i++){
     const cols=parseLine(lines[i]);
@@ -768,12 +780,18 @@ function parseSheet(csv){
     const obs=cl(cols[9]||'').toUpperCase();
     if(!cuentaPub||(!cuentaPub.includes('act_')&&!cuentaPub.includes('act=')))continue;
     if(!cliente)continue;
-    if(seen.has(cuentaPub))continue;
-    seen.add(cuentaPub);
+    
+    // Use cliente+act as unique key if multiple clients share same act=
+    const isShared = actCount[cuentaPub] > 1;
+    const uniqueKey = isShared ? cliente+'|'+cuentaPub : cuentaPub;
+    if(seen.has(uniqueKey))continue;
+    seen.add(uniqueKey);
+    
     const inv=parseFloat(invStr.replace(/[^0-9.]/g,''))||0;
     const pres=parseFloat(presStr.replace(/[^0-9.]/g,''))||0;
     const obj=normalObj(obs,cliente);
-    res.push({cliente,cuentaPub,inv_usd:inv,pres_ars:pres,objetivo:obj,obs});
+    // Store campaign name filter for shared accounts
+    res.push({cliente,cuentaPub,inv_usd:inv,pres_ars:pres,objetivo:obj,obs,isShared,campaignFilter:isShared?cliente:null});
   }
   return res;
 }
@@ -830,16 +848,65 @@ function getRanges(){
 }
 
 // ── META API ──
-async function fetchIns(accountId,since,until){
+async function fetchIns(accountId,since,until,campaignFilter=null){
   // Normalize account ID: act=123 → act_123, or prepend act_ if needed
   let id = accountId;
   if(id.startsWith('act=')) id = 'act_' + id.slice(4);
   else if(!id.startsWith('act_')) id = 'act_' + id;
   const fields=['spend','impressions','clicks','reach','ctr','cpm','cpc','frequency','actions','action_values','cost_per_action_type','outbound_clicks'].join(',');
-  const url=`https://graph.facebook.com/${cfg.metaVersion}/${id}/insights?fields=${fields}&time_range={"since":"${since}","until":"${until}"}&level=account&access_token=${cfg.metaToken}`;
-  const res=await fetch(url);const json=await res.json();
-  if(json.error)throw new Error(json.error.message);
-  return json.data?.[0]||null;
+  
+  let url;
+  if(campaignFilter){
+    // Shared account: filter by campaign name containing client name
+    const filter=encodeURIComponent(JSON.stringify([{"field":"campaign.name","operator":"CONTAIN","value":campaignFilter}]));
+    url=`https://graph.facebook.com/${cfg.metaVersion}/${id}/insights?fields=${fields}&time_range={"since":"${since}","until":"${until}"}&level=campaign&filtering=${filter}&access_token=${cfg.metaToken}`;
+    const res=await fetch(url);const json=await res.json();
+    if(json.error)throw new Error(json.error.message);
+    // Aggregate campaign-level data into one result
+    if(!json.data||!json.data.length)return null;
+    return aggregateCampaigns(json.data);
+  } else {
+    url=`https://graph.facebook.com/${cfg.metaVersion}/${id}/insights?fields=${fields}&time_range={"since":"${since}","until":"${until}"}&level=account&access_token=${cfg.metaToken}`;
+    const res=await fetch(url);const json=await res.json();
+    if(json.error)throw new Error(json.error.message);
+    return json.data?.[0]||null;
+  }
+}
+
+function aggregateCampaigns(data){
+  // Sum numeric fields across campaigns
+  const result={spend:0,impressions:0,clicks:0,reach:0,ctr:0,cpm:0,cpc:0,frequency:0,actions:[],action_values:[]};
+  let totalSpend=0;
+  for(const d of data){
+    result.spend+=parseFloat(d.spend||0);
+    result.impressions+=parseInt(d.impressions||0);
+    result.clicks+=parseInt(d.clicks||0);
+    result.reach+=parseInt(d.reach||0);
+    totalSpend+=parseFloat(d.spend||0);
+    // Merge actions
+    for(const a of (d.actions||[])){
+      const ex=result.actions.find(x=>x.action_type===a.action_type);
+      if(ex)ex.value=String(parseFloat(ex.value)+parseFloat(a.value));
+      else result.actions.push({...a});
+    }
+    for(const a of (d.action_values||[])){
+      const ex=result.action_values.find(x=>x.action_type===a.action_type);
+      if(ex)ex.value=String(parseFloat(ex.value)+parseFloat(a.value));
+      else result.action_values.push({...a});
+    }
+  }
+  // Recalculate derived metrics
+  if(result.impressions>0){
+    result.ctr=String((result.clicks/result.impressions)*100);
+    result.cpm=String((result.spend/result.impressions)*1000);
+    result.frequency=String(result.impressions/Math.max(result.reach,1));
+  }
+  if(result.clicks>0) result.cpc=String(result.spend/result.clicks);
+  result.spend=String(result.spend);
+  result.impressions=String(result.impressions);
+  result.clicks=String(result.clicks);
+  result.reach=String(result.reach);
+  return result;
 }
 
 // ── EXTRACT ──
@@ -1002,11 +1069,12 @@ async function runAudit(){
     const acc=accounts[i];
     updStep(`[${i+1}/${total}] ${acc.cliente}`);updBar(((i+1)/total)*100);
     try{
+      const cf = acc.campaignFilter || null;
       const [w1r,w2r,m1r,m2r]=await Promise.all([
-        fetchIns(acc.cuentaPub,ranges.w1.since,ranges.w1.until),
-        fetchIns(acc.cuentaPub,ranges.w2.since,ranges.w2.until),
-        fetchIns(acc.cuentaPub,ranges.m1.since,ranges.m1.until),
-        fetchIns(acc.cuentaPub,ranges.m2.since,ranges.m2.until),
+        fetchIns(acc.cuentaPub,ranges.w1.since,ranges.w1.until,cf),
+        fetchIns(acc.cuentaPub,ranges.w2.since,ranges.w2.until,cf),
+        fetchIns(acc.cuentaPub,ranges.m1.since,ranges.m1.until,cf),
+        fetchIns(acc.cuentaPub,ranges.m2.since,ranges.m2.until,cf),
       ]);
       const w1=extract(w1r,acc.objetivo),w2=extract(w2r,acc.objetivo);
       const m1=extract(m1r,acc.objetivo),m2=extract(m2r,acc.objetivo);
