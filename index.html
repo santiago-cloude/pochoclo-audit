@@ -1236,7 +1236,7 @@ function renderCard(r,idx,ranges){
         <span class="tag ${rc[risk]||'tu'}">${isBrand?'📊 Branding':rl[risk]||'—'}</span>
       </div>
       <div class="cr">
-        ${m1?`<span style="font-size:12px;color:var(--muted)">Mes: <strong style="color:var(--navy);font-family:var(--font-display)">${fmoney(m1.spend, moneda)}</strong></span>`:''}
+        ${m1?`<span style="font-size:12px;color:var(--muted)">Mes: <strong style="color:var(--navy);font-family:var(--font-display)">${fmoney(m1.spend, acc.moneda)}</strong></span>`:''}
         <span class="ci open" style="color:var(--orange);font-size:14px;">▼</span>
       </div>
     </div>
@@ -1429,29 +1429,7 @@ function fmoney(n, moneda){
   return sym(moneda)+Math.round(n).toLocaleString('es-AR');
 }
 // fn(n, moneda?) → abbreviated for KPI big display
-function fmoney(n, moneda){
-  if(n===null||n===undefined||isNaN(n))return'—';
-  const s=sym(moneda);
-  if(Math.abs(n)>=1000000)return s+(n/1000000).toFixed(1).replace('.',',')+'M';
-  if(Math.abs(n)>=1000)return s+Math.round(n/1000)+'K';
-  return s+Math.round(n).toLocaleString('es-AR');
-}
-// fnD(n, decimals) → with decimals, no currency
-function fnD(n,d=2){
-  if(n===null||n===undefined||isNaN(n))return'—';
-  return parseFloat(n).toLocaleString('es-AR',{minimumFractionDigits:d,maximumFractionDigits:d});
-}
-function sym(moneda){
-  const m=(moneda||'ARS').toUpperCase();
-  if(m==='USD')return'USD ';
-  if(m==='LIBRAS'||m==='GBP')return'£';
-  return '$'; // ARS default
-}
-function fmoney(n,moneda){
-  if(n===null||n===undefined||isNaN(n))return'—';
-  const _n=typeof n==='number'?n:parseFloat(n);
-  return sym(moneda)+Math.round(_n).toLocaleString('es-AR');
-}
+
 function fmoney(n,moneda){
   if(n===null||n===undefined||isNaN(n))return'—';
   const _n=typeof n==='number'?n:parseFloat(n);
