@@ -525,29 +525,26 @@
         <input type="text" id="metaVersion" value="v21.0"/>
       </div>
       <div class="fg full">
-        <label>Mes a Auditar</label>
-        <select id="selectedMonth">
-          <option value="Enero">Enero</option>
-          <option value="Febrero">Febrero</option>
-          <option value="Marzo">Marzo</option>
-          <option value="Abril">Abril</option>
-          <option value="Mayo">Mayo</option>
-          <option value="Junio">Junio</option>
-          <option value="Julio">Julio</option>
-          <option value="Agosto">Agosto</option>
-          <option value="Septiembre">Septiembre</option>
-          <option value="Octubre">Octubre</option>
-          <option value="Noviembre">Noviembre</option>
-          <option value="Diciembre">Diciembre</option>
-        </select>
-        <p class="hint">Se carga automáticamente la pestaña del mes seleccionado desde tu Sheet 2026_Control Campañas.</p>
+        <label>Archivo CSV del Sheet (2026_Control Campañas)</label>
+        <div id="csvDropZone" style="border:2px dashed var(--border);border-radius:8px;padding:20px;text-align:center;cursor:pointer;transition:all .2s;background:var(--surface2);"
+          onclick="document.getElementById('csvFileInput').click()"
+          ondragover="event.preventDefault();this.style.borderColor='var(--orange)'"
+          ondragleave="this.style.borderColor='var(--border)'"
+          ondrop="handleDrop(event)">
+          <div id="csvZoneText" style="color:var(--muted);font-size:13px;">
+            <div style="font-size:24px;margin-bottom:6px;">📄</div>
+            <strong style="color:var(--navy)">Cliqueá o arrastrá el CSV acá</strong><br>
+            <span style="font-size:11px;">Archivo → Descargar → CSV desde Google Sheets</span>
+          </div>
+        </div>
+        <input type="file" id="csvFileInput" accept=".csv" style="display:none" onchange="handleCSVFile(this.files[0])"/>
+        <p class="hint">Descargá el CSV del mes que querés auditar desde Google Sheets: <strong>Archivo → Descargar → Valores separados por comas</strong></p>
       </div>
     </div>
     <div class="ibox">
-      <strong>Estructura de tu Sheet (2026_Control Campañas):</strong><br>
-      Col B: Fecha · Col C: Cliente · Col D: Inversión Meta (USD) · Col E: Presupuesto aprobado (ARS)<br>
-      Col F: Diferencia · Col G: % Cumplimiento · Col H: Cuenta publicitaria (<code>act_xxx</code>) · Col I: Cliente · <strong>Col J: Observaciones</strong><br><br>
-      Valores reconocidos en Col J: <code>VENTAS</code> · <code>LEADS</code> · <code>BRANDING</code> · <code>VENTAS/LEADS</code>
+      <strong>Cómo cargar el CSV:</strong><br>
+      1. Abrí tu Google Sheet · 2. Seleccioná el mes (pestaña) · 3. <strong>Archivo → Descargar → Valores separados por comas (.csv)</strong><br>
+      4. Arrastrá el archivo acá o cliqueá para seleccionarlo · Podés actualizarlo cuando quieras repitiendo el proceso.
     </div>
     <div style="margin-top:16px;display:flex;gap:10px;">
       <button class="btn btn-p" onclick="saveConfig()">✓ Guardar y Conectar</button>
@@ -563,7 +560,10 @@
         Cuentas Cargadas
         <span id="accCount" style="font-size:12px;color:var(--muted);font-weight:400;margin-left:8px;"></span>
       </div>
-      <button class="btn btn-p" id="auditBtn" onclick="runAudit()">▶ Auditar Todas las Cuentas</button>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-s" onclick="document.getElementById('csvFileInput').click()" style="font-size:12px;padding:8px 16px;">📄 Cambiar CSV</button>
+        <button class="btn btn-p" id="auditBtn" onclick="runAudit()">▶ Auditar Todas las Cuentas</button>
+      </div>
     </div>
     <table>
       <thead>
@@ -627,16 +627,16 @@ let accounts=[];
 function loadConfig(){
   try{
     const s=localStorage.getItem('pm_audit_v1');
-    if(s){cfg={...cfg,...JSON.parse(s)};document.getElementById('metaToken').value=cfg.metaToken||'';document.getElementById('metaVersion').value=cfg.metaVersion||'v21.0';document.getElementById('selectedMonth').value=cfg.selectedMonth||currentMonth;}
-    if(cfg.metaToken){badge('meta',true,'Meta: Configurado');document.getElementById('setupPanel').classList.add('hidden');loadSheet();}
+    if(s){cfg={...cfg,...JSON.parse(s)};document.getElementById('metaToken').value=cfg.metaToken||'';document.getElementById('metaVersion').value=cfg.metaVersion||'v21.0';}
+    if(cfg.metaToken){badge('meta',true,'Meta: Configurado');document.getElementById('setupPanel').classList.add('hidden');}
+    loadSheet();
   }catch(e){}
 }
 function saveConfig(){
   const t=document.getElementById('metaToken').value.trim();
   const v=document.getElementById('metaVersion').value.trim();
-  const m=document.getElementById('selectedMonth').value;
   if(!t){showErr('setupErr','Ingresá el Access Token de Meta.');return;}
-  cfg={metaToken:t,metaVersion:v||'v21.0',selectedMonth:m};
+  cfg={metaToken:t,metaVersion:v||'v21.0'};
   try{localStorage.setItem('pm_audit_v1',JSON.stringify(cfg));}catch(e){}
   badge('meta',true,'Meta: Configurado');
   document.getElementById('setupPanel').classList.add('hidden');
@@ -647,51 +647,55 @@ function toggleSetup(){document.getElementById('setupPanel').classList.toggle('h
 function badge(t,on,l){document.getElementById(t+'Dot').className='sdot'+(on?' on':'');document.getElementById(t+'St').textContent=l;}
 function showErr(id,m){const e=document.getElementById(id);e.textContent=m;e.classList.add('v');setTimeout(()=>e.classList.remove('v'),7000);}
 
-// ── SHEET PARSER ──
-async function loadSheet(){
-  setLoad(true,'Cargando cuentas...','Conectando con Google Sheets');
-  try{
-    const month = cfg.selectedMonth || currentMonth;
-    const gid = SHEET_MONTHS[month];
-    if(!gid) throw new Error('Mes no reconocido: ' + month);
-    
-    const jsonUrl = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&gid=${gid}`;
-    
-    const resp = await fetch(jsonUrl);
-    if(!resp.ok) throw new Error(`Error HTTP ${resp.status} al acceder al Sheet`);
-    
-    const text = await resp.text();
-    // Google returns: google.visualization.Query.setResponse({...})
-    const jsonStr = text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\)/);
-    if(!jsonStr) throw new Error('Respuesta inesperada de Google Sheets. Verificá que el Sheet esté compartido públicamente.');
-    
-    const data = JSON.parse(jsonStr[1]);
-    if(data.status === 'error') throw new Error('Google Sheets rechazó la solicitud. Verificá que el Sheet sea público.');
-    
-    const csv = convertGvizToCSV(data);
-    accounts=parseSheet(csv);
-    if(!accounts.length)throw new Error('No se encontraron cuentas válidas. Verificá que la Col H tenga el act_xxx.');
-    badge('sheet',true,`${cfg.selectedMonth||currentMonth}: ${accounts.length} cuentas`);
-    document.getElementById('accCount').textContent=`(${accounts.length})`;
-    renderAccTable();
-    document.getElementById('accPanel').style.display='block';
-  }catch(e){badge('sheet',false,'Sheet: Error');showErr('setupErr','⚠ '+e.message);}
-  finally{setLoad(false);}
+// ── CSV FILE HANDLING ──
+function handleDrop(e){
+  e.preventDefault();
+  document.getElementById('csvDropZone').style.borderColor='var(--border)';
+  const file = e.dataTransfer.files[0];
+  if(file) handleCSVFile(file);
 }
 
-function convertGvizToCSV(data){
-  // Convert Google Visualization JSON to CSV string
-  const table = data.table;
-  if(!table || !table.rows) return '';
-  const headers = table.cols.map(c => c.label || c.id || '');
-  const rows = table.rows.map(row => 
-    row.c.map(cell => {
-      if(!cell) return '';
-      const v = cell.v !== null && cell.v !== undefined ? String(cell.v) : (cell.f || '');
-      return v.includes(',') ? `"${v}"` : v;
-    }).join(',')
-  );
-  return [headers.join(','), ...rows].join('\n');
+function handleCSVFile(file){
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e){
+    const csv = e.target.result;
+    processCSV(csv, file.name);
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+function processCSV(csv, filename){
+  try{
+    accounts = parseSheet(csv);
+    if(!accounts.length) throw new Error('No se encontraron cuentas válidas. Verificá que la Col H tenga act_xxx.');
+    
+    // Update UI
+    const zoneName = filename.replace('.csv','');
+    document.getElementById('csvZoneText').innerHTML = `<div style="color:var(--green);font-size:20px;margin-bottom:6px;">✓</div><strong style="color:var(--navy)">${filename}</strong><br><span style="font-size:11px;color:var(--muted)">${accounts.length} cuentas cargadas · Cliqueá para cambiar archivo</span>`;
+    document.getElementById('csvDropZone').style.borderColor = 'var(--green)';
+    
+    badge('sheet', true, `${accounts.length} cuentas`);
+    document.getElementById('accCount').textContent = `(${accounts.length})`;
+    renderAccTable();
+    document.getElementById('accPanel').style.display = 'block';
+    
+    // Save to sessionStorage for reload
+    try{ sessionStorage.setItem('pm_csv', csv); sessionStorage.setItem('pm_csv_name', filename); }catch(e){}
+  } catch(err){
+    badge('sheet', false, 'Sheet: Error');
+    showErr('setupErr', '⚠ ' + err.message);
+  }
+}
+
+// ── SHEET PARSER ──
+function loadSheet(){
+  // Try to restore CSV from sessionStorage
+  try{
+    const csv = sessionStorage.getItem('pm_csv');
+    const name = sessionStorage.getItem('pm_csv_name') || 'archivo.csv';
+    if(csv) processCSV(csv, name);
+  }catch(e){}
 }
 
 function parseSheet(csv){
