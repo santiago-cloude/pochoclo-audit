@@ -528,7 +528,7 @@
       <div class="fg full">
         <label>Archivo Excel o CSV del Sheet (2026_Control Campañas)</label>
         <div id="csvDropZone" style="border:2px dashed var(--border);border-radius:8px;padding:20px;text-align:center;cursor:pointer;transition:all .2s;background:var(--surface2);"
-          onclick="document.getElementById('csvFileInput').click()"
+          onclick="if(!document.getElementById('sheetNameSelector'))document.getElementById('csvFileInput').click()"
           ondragover="event.preventDefault();this.style.borderColor='var(--orange)'"
           ondragleave="this.style.borderColor='var(--border)'"
           ondrop="handleDrop(event)">
@@ -562,7 +562,7 @@
         <span id="accCount" style="font-size:12px;color:var(--muted);font-weight:400;margin-left:8px;"></span>
       </div>
       <div style="display:flex;gap:10px;">
-        <button class="btn btn-s" onclick="document.getElementById('csvFileInput').click()" style="font-size:12px;padding:8px 16px;">📄 Cambiar CSV</button>
+        <button class="btn btn-s" onclick="if(!document.getElementById('sheetNameSelector'))document.getElementById('csvFileInput').click()" style="font-size:12px;padding:8px 16px;">📄 Cambiar CSV</button>
         <button class="btn btn-p" id="auditBtn" onclick="runAudit()">▶ Auditar Todas las Cuentas</button>
       </div>
     </div>
@@ -698,10 +698,10 @@ function showSheetSelector(sheetNames, filename){
     <div style="color:var(--navy);font-size:13px;">
       <div style="font-size:18px;margin-bottom:8px;">📊</div>
       <strong>${filename}</strong> — Seleccioná el mes a auditar:<br>
-      <select id="sheetNameSelector" style="margin-top:10px;padding:8px 14px;border:1.5px solid var(--orange);border-radius:8px;background:white;font-family:var(--font-mono);font-size:13px;color:var(--navy);cursor:pointer;">
+      <select id="sheetNameSelector" onclick="event.stopPropagation()" style="margin-top:10px;padding:8px 14px;border:1.5px solid var(--orange);border-radius:8px;background:white;font-family:var(--font-mono);font-size:13px;color:var(--navy);cursor:pointer;">
         ${options}
       </select>
-      <button onclick="loadSelectedSheet('${filename}')" style="margin-left:8px;padding:8px 16px;background:var(--orange);color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:var(--font-display);font-size:13px;">
+      <button onclick="event.stopPropagation();loadSelectedSheet('${filename}')" style="margin-left:8px;padding:8px 16px;background:var(--orange);color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-family:var(--font-display);font-size:13px;">
         Cargar Mes
       </button>
     </div>`;
