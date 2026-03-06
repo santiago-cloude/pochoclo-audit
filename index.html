@@ -1419,9 +1419,8 @@ function fnD(n,d=2){
 function sym(m){
   if(!m)return '$';
   const u=m.toUpperCase();
-  if(u==='USD')return 'USD ';
   if(u==='LIBRAS'||u==='GBP')return '£';
-  return '$'; // ARS default
+  return '$'; // ARS and USD both show $, moneda label shown separately
 }
 // fn(n, moneda?) → full number with locale punctuation + currency symbol
 function fmoney(n, moneda){
@@ -1496,7 +1495,12 @@ async function generateAIConclusion(r){
   try{
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: {'Content-Type':'application/json'},
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': localStorage.getItem('pm_token') || '',
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 1000,
