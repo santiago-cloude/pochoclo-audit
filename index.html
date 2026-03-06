@@ -879,7 +879,7 @@ function renderAccTable(){
       <td><label for="${safeId}" style="cursor:pointer;"><strong style="color:var(--navy)">${a.cliente}</strong></label></td>
       <td style="font-size:11px;color:var(--muted);font-family:'Inter',sans-serif">${a.cuentaPub}</td>
       <td><span class="tag ${tc}">${objLabel[a.objetivo]||a.objetivo}</span></td>
-      <td style="font-family:'Inter',sans-serif">USD ${fn(a.inv_usd)}</td>
+      <td style="font-family:'Inter',sans-serif">${fn(a.inv_usd)}</td>
       <td style="font-family:'Inter',sans-serif">${a.pres_ars>0?(a.moneda||'ARS')+' '+fn(a.pres_ars):'—'}</td>
     </tr>`;
   }).join('');
@@ -1024,8 +1024,8 @@ function analyze(curr,prev,obj,isMonthly=false){
       const bad=d>0;
       diags.push({type:bad?(d>25?'critical':'warning'):'positive',
         title:`Costo por ${curr.rl} ${bad?'aumentó':'bajó'} ${Math.abs(d).toFixed(1)}%`,
-        detail:`De $${prev.cpr.toFixed(2)} → $${curr.cpr.toFixed(2)} USD. ${bad?'La inversión perdió eficiencia en la conversión.':'Mejora de eficiencia sostenida.'}`,
-        nums:[`Actual: $${curr.cpr.toFixed(2)}`,`Anterior: $${prev.cpr.toFixed(2)}`,`Δ: ${d>0?'+':''}${d.toFixed(1)}%`]
+        detail:`De $${fn(prev.cpr)} → $${fn(curr.cpr)}. ${bad?'La inversión perdió eficiencia en la conversión.':'Mejora de eficiencia sostenida.'}`,
+        nums:[`Actual: $${fn(curr.cpr)}`,`Anterior: $${fn(prev.cpr)}`,`Δ: ${d>0?'+':''}${d.toFixed(1)}%`]
       });
       if(bad&&d>15)actions.push('Revisar y rotar creativos — posible fatiga o pérdida de relevancia');
       if(bad&&d>25)actions.push('Pausar conjuntos con peor CPR y reasignar presupuesto a los más eficientes');
@@ -1041,8 +1041,8 @@ function analyze(curr,prev,obj,isMonthly=false){
     else if(r<=20){t='warning';msg='Ratio preocupante (15–20%)';badge2='ATENCIÓN';actions.push('Optimizar campañas de mayor gasto para reducir ratio inversión/facturación');}
     else{t='critical';msg='Ratio crítico (>20%) — acción urgente';badge2='PROBLEMA';actions.push('URGENTE: Reducir inversión o revisar estrategia — ratio insostenible para el negocio');}
     diags.push({type:t,title:`Ratio Inversión/Facturación: ${r.toFixed(1)}% (${badge2})`,
-      detail:`${msg}. Inversión: $${curr.spend.toFixed(2)} sobre $${curr.rv.toFixed(2)} en ventas. ROAS: ${curr.roas?.toFixed(2)||'—'}x`,
-      nums:[`Inversión: $${curr.spend.toFixed(2)}`,`Facturación: $${curr.rv.toFixed(2)}`,`Ratio: ${r.toFixed(1)}%`,`ROAS: ${curr.roas?.toFixed(2)||'—'}x`]
+      detail:`${msg}. Inversión: $${fn(curr.spend)} sobre $${fn(curr.rv)} en ventas. ROAS: ${curr.roas?.toFixed(2)||'—'}x`,
+      nums:[`Inversión: $${fn(curr.spend)}`,`Facturación: $${fn(curr.rv)}`,`Ratio: ${r.toFixed(1)}%`,`ROAS: ${curr.roas?.toFixed(2)||'—'}x`]
     });
   } else if(isMonthly&&useObj!=='ventas'&&curr.cpr>0&&prev.cpr>0){
     const dCPR=pd(curr.cpr,prev.cpr);
@@ -1051,8 +1051,8 @@ function analyze(curr,prev,obj,isMonthly=false){
       const bad=dCPR>0;
       const t=bad?(dCPR>20?'critical':'warning'):'positive';
       diags.push({type:t,title:`Costo por ${curr.rl}: ${bad?'subió':'bajó'} ${Math.abs(dCPR).toFixed(1)}%`,
-        detail:`Actual: $${curr.cpr.toFixed(2)} · Anterior: $${prev.cpr.toFixed(2)}. ${bad?'La eficiencia cayó.':'Mejora sostenida.'}`,
-        nums:[`Actual: $${curr.cpr.toFixed(2)}`,`Anterior: $${prev.cpr.toFixed(2)}`,`Δ: ${dCPR>0?'+':''}${dCPR.toFixed(1)}%`]
+        detail:`Actual: $${fn(curr.cpr)} · Anterior: $${fn(prev.cpr)}. ${bad?'La eficiencia cayó.':'Mejora sostenida.'}`,
+        nums:[`Actual: $${fn(curr.cpr)}`,`Anterior: $${fn(prev.cpr)}`,`Δ: ${dCPR>0?'+':''}${dCPR.toFixed(1)}%`]
       });
       if(bad&&dCPR>20)actions.push(`Revisar segmentación y creativos — costo por ${curr.rl.toLowerCase()} deteriorado >20%`);
     }
@@ -1072,7 +1072,7 @@ function analyze(curr,prev,obj,isMonthly=false){
     if(dCTR!==null&&dCPM!==null&&dCTR<-15&&dCPM>10){
       diags.push({type:'critical',title:'Saturación de audiencia detectada',
         detail:`CTR bajó ${Math.abs(dCTR).toFixed(1)}% y CPM subió ${dCPM.toFixed(1)}% simultáneamente. Señal de presión en subasta con pérdida de relevancia.`,
-        nums:[`CTR: ${prev.ctr.toFixed(2)}% → ${curr.ctr.toFixed(2)}%`,`CPM: $${prev.cpm.toFixed(2)} → $${curr.cpm.toFixed(2)}`]
+        nums:[`CTR: ${prev.ctr.toFixed(2)}% → ${curr.ctr.toFixed(2)}%`,`CPM: $${fn(prev.cpm)} → $${fn(curr.cpm)}`]
       });
       actions.push('Ampliar o renovar audiencias — señales claras de saturación del segmento');
       actions.push('Rotar creativos — el contenido perdió relevancia frente a la audiencia actual');
@@ -1127,13 +1127,13 @@ function analyze(curr,prev,obj,isMonthly=false){
   // 6. CPC
   if(curr.cpc>0&&prev.cpc>0){
     const d=pd(curr.cpc,prev.cpc);
-    if(d!==null&&d>20)diags.push({type:'warning',title:`CPC subió ${d.toFixed(1)}%`,detail:'Costo por clic en alza. Posible mayor competencia en subasta o pérdida de quality score del anuncio.',nums:[`CPC actual: $${curr.cpc.toFixed(2)}`,`CPC anterior: $${prev.cpc.toFixed(2)}`]});
+    if(d!==null&&d>20)diags.push({type:'warning',title:`CPC subió ${d.toFixed(1)}%`,detail:'Costo por clic en alza. Posible mayor competencia en subasta o pérdida de quality score del anuncio.',nums:[`CPC actual: $${fn(curr.cpc)}`,`CPC anterior: $${fn(prev.cpc)}`]});
   }
 
   // 7. Inversión delta
   if(curr.spend>0&&prev.spend>0){
     const d=pd(curr.spend,prev.spend);
-    if(d!==null&&Math.abs(d)>30)diags.push({type:'info',title:`Inversión ${d>0?'aumentó':'redujo'} ${Math.abs(d).toFixed(1)}%`,detail:'Cambio significativo en el nivel de inversión. Verificar si fue planificado o un comportamiento inesperado.',nums:[`Actual: $${curr.spend.toFixed(2)} USD`,`Anterior: $${prev.spend.toFixed(2)} USD`,`Δ: ${d>0?'+':''}${d.toFixed(1)}%`]});
+    if(d!==null&&Math.abs(d)>30)diags.push({type:'info',title:`Inversión ${d>0?'aumentó':'redujo'} ${Math.abs(d).toFixed(1)}%`,detail:'Cambio significativo en el nivel de inversión. Verificar si fue planificado o un comportamiento inesperado.',nums:[`Actual: $${fn(curr.spend)}`,`Anterior: $${fn(prev.spend)}`,`Δ: ${d>0?'+':''}${d.toFixed(1)}%`]});
   }
 
   if(!diags.length)diags.push({type:'positive',title:'Sin anomalías detectadas',detail:'Las métricas se mantienen estables entre períodos. No se requiere acción inmediata.',nums:[]});
@@ -1236,7 +1236,7 @@ function renderCard(r,idx,ranges){
         <span class="tag ${rc[risk]||'tu'}">${isBrand?'📊 Branding':rl[risk]||'—'}</span>
       </div>
       <div class="cr">
-        ${m1?`<span style="font-size:12px;color:var(--muted)">Mes: <strong style="color:var(--navy);font-family:var(--font-display)">$${fn(m1.spend)} USD</strong></span>`:''}
+        ${m1?`<span style="font-size:12px;color:var(--muted)">Mes: <strong style="color:var(--navy);font-family:var(--font-display)">$${fn(m1.spend)}</strong></span>`:''}
         <span class="ci open" style="color:var(--orange);font-size:14px;">▼</span>
       </div>
     </div>
@@ -1331,7 +1331,7 @@ function renderBudget(spentUSD,budgetARS,metrics,obj,moneda='ARS'){
       <div class="bdet">
         <span>✓≤10% perfecto · ✓≤15% ok · ⚡15–20% atención · ⚠>20% problema</span>
       </div>
-      <div style="margin-top:8px;font-size:11px;color:var(--muted)">ROAS: <strong style="color:var(--navy)">${metrics.roas?.toFixed(2)||'—'}x</strong> · Ventas: <strong style="color:var(--navy)">$${fn(metrics.rv)} USD</strong></div>
+      <div style="margin-top:8px;font-size:11px;color:var(--muted)">ROAS: <strong style="color:var(--navy)">${metrics.roas?.toFixed(2)||'—'}x</strong> · Ventas: <strong style="color:var(--navy)">$${fn(metrics.rv)}</strong></div>
     </div>`;
   }
   return`<div class="bgrid">
