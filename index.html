@@ -720,7 +720,6 @@
           <th>Cliente</th>
           <th>Cuenta publicitaria</th>
           <th>Objetivo</th>
-          <th>Filtro campaña <span style="font-weight:400;font-size:10px;color:var(--muted)">(opcional)</span></th>
           <th>Inversión Meta (USD)</th>
           <th>Presupuesto (ARS)</th>
         </tr>
@@ -1004,7 +1003,6 @@ function renderAccTable(){
       <td><label for="${safeId}" style="cursor:pointer;"><strong style="color:var(--navy)">${a.cliente}</strong></label></td>
       <td style="font-size:11px;color:var(--muted);font-family:'Inter',sans-serif">${a.cuentaPub}</td>
       <td><span class="tag ${tc}">${objLabel[a.objetivo]||a.objetivo}</span></td>
-      <td><input type="text" value="${getCampFilter(a)}" onchange="setCampFilter(${i},this.value)" placeholder="ej: ESTEREO COLOR" style="width:140px;font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-family:'Inter',sans-serif;color:var(--navy);background:white;" title="Fragmento del nombre de campaña para filtrar. Dejar vacío para traer toda la cuenta."/></td>
       <td style="font-family:'Inter',sans-serif">${fn(a.inv_usd)}</td>
       <td style="font-family:'Inter',sans-serif">${a.pres_ars>0?(a.moneda||'ARS')+' '+fn(a.pres_ars):'—'}</td>
     </tr>`;
