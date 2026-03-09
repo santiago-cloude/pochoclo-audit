@@ -720,7 +720,7 @@
           <th>Cliente</th>
           <th>Cuenta publicitaria</th>
           <th>Objetivo</th>
-          <th>Filtro campaña</th>
+          <th>Filtro campaña <span style="font-weight:400;font-size:10px;color:var(--muted)">(opcional)</span></th>
           <th>Inversión Meta (USD)</th>
           <th>Presupuesto (ARS)</th>
         </tr>
@@ -765,23 +765,6 @@
     <div class="mfg">
       <label>Estacionalidad — meses fuertes y meses bajos</label>
       <input type="text" id="perfilEstacionalidad" placeholder="ej: Pico en Nov-Dic, bajo en Feb-Mar..."/>
-    </div>
-    <div class="mfg">
-      <label>Filtro de campaña <span style="font-weight:400;color:var(--muted)">(para cuentas que comparten cuenta publicitaria)</span></label>
-      <input type="text" id="perfilCampFilter" placeholder="ej: ESTEREO COLOR — fragmento del nombre de campaña"/>
-      <div style="font-size:11px;color:var(--muted);margin-top:4px;">Si la cuenta tiene múltiples clientes en el mismo Ad Account, ingresá un texto que aparezca en el nombre de las campañas de este cliente.</div>
-    </div>
-    <div class="mfg">
-      <label>Forzar objetivo <span style="font-weight:400;color:var(--muted)">(overridea el objetivo del Excel)</span></label>
-      <select id="perfilForzarObj" style="width:100%;padding:8px 12px;border:1px solid var(--border2);border-radius:8px;font-size:13px;color:var(--text);background:white;font-family:inherit;">
-        <option value="">— Sin override (usar el del Excel)</option>
-        <option value="ventas">VENTAS</option>
-        <option value="leads">LEADS</option>
-        <option value="branding">BRANDING</option>
-        <option value="trafico">TRÁFICO</option>
-        <option value="conversaciones">CONVERSACIONES</option>
-        <option value="registros">REGISTROS</option>
-      </select>
     </div>
     <div class="mfg">
       <label>Notas del Estratega</label>
@@ -983,7 +966,7 @@ function parseSheet(csv){
     const obj=normalObj(obs,cliente);
     // Store campaign name filter for shared accounts
     const moneda=cl(cols[10]||'').toUpperCase()||'ARS';
-    res.push({cliente,cuentaPub,inv_usd:inv,pres_ars:pres,objetivo:obj,obs,isShared,campaignFilter:isShared?cliente:null,moneda});
+    res.push({cliente,cuentaPub,inv_usd:inv,pres_ars:pres,objetivo:obj,obs,isShared,campaignFilter:null,moneda});
   }
   return res;
 }
@@ -1021,7 +1004,7 @@ function renderAccTable(){
       <td><label for="${safeId}" style="cursor:pointer;"><strong style="color:var(--navy)">${a.cliente}</strong></label></td>
       <td style="font-size:11px;color:var(--muted);font-family:'Inter',sans-serif">${a.cuentaPub}</td>
       <td><span class="tag ${tc}">${objLabel[a.objetivo]||a.objetivo}</span></td>
-      <td style="font-size:11px;">${(()=>{const p=getPerfil(a);const f=p.campFilter||a.campaignFilter||null;return f?`<span style="background:rgba(244,121,32,.12);color:var(--orange);padding:2px 7px;border-radius:4px;font-family:'Inter',sans-serif;">${f}</span>`:'<span style="color:var(--muted2)">—</span>';})()}</td>
+      <td><input type="text" value="${getCampFilter(a)}" onchange="setCampFilter(${i},this.value)" placeholder="ej: ESTEREO COLOR" style="width:140px;font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-family:'Inter',sans-serif;color:var(--navy);background:white;" title="Fragmento del nombre de campaña para filtrar. Dejar vacío para traer toda la cuenta."/></td>
       <td style="font-family:'Inter',sans-serif">${fn(a.inv_usd)}</td>
       <td style="font-family:'Inter',sans-serif">${a.pres_ars>0?(a.moneda||'ARS')+' '+fn(a.pres_ars):'—'}</td>
     </tr>`;
@@ -1515,13 +1498,10 @@ async function runAudit(){
     const acc=selected[i];
     updStep(`[${i+1}/${total}] ${acc.cliente}`);updBar(((i+1)/total)*100);
     try{
-      // Filtro de campaña: perfil del cliente > isShared automático > null
-      const perfilAcc = getPerfil(acc);
-      const cf = perfilAcc.campFilter || acc.campaignFilter || null;
-      // Objetivo efectivo: override del perfil > objetivo del Excel
-      const objEfectivo = perfilAcc.forzarObj || acc.objetivo;
-      // acc efectivo con objetivo overrideado (para render, cerebro, etc.)
-      const accEf = perfilAcc.forzarObj ? {...acc, objetivo: objEfectivo} : acc;
+      // Filtro de campaña desde la tabla (editable inline)
+      const cf = getCampFilter(acc) || null;
+      const objEfectivo = acc.objetivo;
+      const accEf = acc;
       // Traer datos globales de cuenta (para totales) y por campaña (para desglose por objetivo)
       const [w1r,w2r,m1r,m2r,campW1,campM1]=await Promise.all([
         fetchIns(acc.cuentaPub,ranges.w1.since,ranges.w1.until,cf),
@@ -1963,7 +1943,17 @@ function initApp(){
 
 
 // ── PERFIL DE CLIENTE ──
-function getPerfilKey(acc){ return 'pm_perfil_' + (acc.cuentaPub||acc.cliente).replace(/[^a-z0-9]/gi,'_'); }
+// ── FILTRO DE CAMPAÑA (independiente del perfil) ──
+function getCampFilterKey(acc){ return 'pm_cf_' + (acc.isShared?(acc.cliente+'_'+acc.cuentaPub):(acc.cuentaPub||acc.cliente)).replace(/[^a-z0-9]/gi,'_'); }
+function getCampFilter(acc){ try{ return localStorage.getItem(getCampFilterKey(acc))||''; }catch(e){ return ''; } }
+function setCampFilter(idx, val){
+  const acc = accounts[idx];
+  if(!acc) return;
+  const key = getCampFilterKey(acc);
+  try{ if(val.trim()) localStorage.setItem(key, val.trim()); else localStorage.removeItem(key); }catch(e){}
+}
+
+function getPerfilKey(acc){ const k = acc.isShared ? (acc.cliente+'_'+acc.cuentaPub) : (acc.cuentaPub||acc.cliente); return 'pm_perfil_' + k.replace(/[^a-z0-9]/gi,'_'); }
 
 function getPerfil(acc){
   try{ return JSON.parse(localStorage.getItem(getPerfilKey(acc))||'{}'); }catch(e){ return {}; }
@@ -1978,8 +1968,6 @@ function openPerfilModal(accIdx){
   document.getElementById('perfilIndustria').value = p.industria||'';
   document.getElementById('perfilEstacionalidad').value = p.estacionalidad||'';
   document.getElementById('perfilNotas').value = p.notas||'';
-  document.getElementById('perfilCampFilter').value = p.campFilter||'';
-  document.getElementById('perfilForzarObj').value = p.forzarObj||'';
   document.getElementById('perfilModal').classList.add('active');
 }
 
@@ -1993,8 +1981,6 @@ function savePerfilCliente(){
     industria: document.getElementById('perfilIndustria').value.trim(),
     estacionalidad: document.getElementById('perfilEstacionalidad').value.trim(),
     notas: document.getElementById('perfilNotas').value.trim(),
-    campFilter: document.getElementById('perfilCampFilter').value.trim(),
-    forzarObj: document.getElementById('perfilForzarObj').value,
     updatedAt: new Date().toLocaleDateString('es-AR')
   };
   try{ localStorage.setItem(key, JSON.stringify(data)); }catch(e){}
@@ -2009,7 +1995,7 @@ function savePerfilCliente(){
 
 // ── HISTORIAL META API (6 meses) con cache 24hs ──
 function getHistorialCacheKey(acc){
-  return 'pm_hist_' + (acc.cuentaPub||acc.cliente).replace(/[^a-z0-9]/gi,'_');
+  const hk = acc.isShared ? (acc.cliente+'_'+acc.cuentaPub) : (acc.cuentaPub||acc.cliente); return 'pm_hist_' + hk.replace(/[^a-z0-9]/gi,'_');
 }
 
 async function fetchHistorial(acc){
@@ -2037,9 +2023,8 @@ async function fetchHistorial(acc){
       months.push({desde, hasta, label, isCurrent: isCurrentMonth});
     }
     const results = await Promise.all(months.map(async m => {
-      const perfilH = getPerfil(acc);
-      const cf = perfilH.campFilter || acc.campaignFilter || null;
-      const objH = perfilH.forzarObj || acc.objetivo;
+      const cf = getCampFilter(acc) || null;
+      const objH = acc.objetivo;
       const raw = await fetchIns(acc.cuentaPub, m.desde, m.hasta, cf);
       const ex = extract(raw, objH);
       return { label: m.label, isCurrent: m.isCurrent, desde: m.desde, hasta: m.hasta, data: ex };
