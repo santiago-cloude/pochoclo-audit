@@ -2455,6 +2455,18 @@ function renderCerebro(el, r, acc, historial){
       <div style="display:flex;gap:3px;margin-top:2px;">${labels}</div>
       ${r.tendencia.trendMsg?`<div style="font-size:11px;color:var(--muted);margin-top:6px;">📈 ${r.tendencia.trendMsg}</div>`:''}
     </div>`;
+  } else {
+    // Sin historial útil — limpiar caché viejo y reintentar automáticamente
+    html += `<div class="ai-section" style="display:flex;align-items:center;gap:10px;padding:10px 0;">
+      <div style="font-size:12px;color:var(--muted);">Cargando historial de inversión...</div>
+    </div>`;
+    // Limpiar caché viejo automáticamente si el historial tiene datos pero todos en 0
+    setTimeout(()=>{
+      const key = getHistorialCacheKey(acc);
+      try{ localStorage.removeItem(key); }catch(e){}
+      const rRef = window._lastResults?.find(x=>x.acc?.cuentaPub===acc.cuentaPub);
+      if(rRef && !r.tendencia) generateAIConclusion(rRef);
+    }, 500);
   }
 
   // Diagnóstico ejecutivo
