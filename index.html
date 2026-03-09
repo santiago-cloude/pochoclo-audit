@@ -426,6 +426,53 @@
   }
   .sdivider::after { content:''; flex:1; height:1px; background:var(--border); }
 
+  /* PERFIL CLIENTE MODAL */
+  .modal-overlay {
+    display:none; position:fixed; inset:0; background:rgba(27,42,74,.45);
+    backdrop-filter:blur(4px); z-index:200; align-items:center; justify-content:center;
+  }
+  .modal-overlay.active { display:flex; }
+  .modal-box {
+    background:var(--white); border-radius:16px; padding:32px;
+    width:560px; max-width:95vw; max-height:90vh; overflow-y:auto;
+    box-shadow:0 8px 40px rgba(27,42,74,.18);
+  }
+  .modal-title {
+    font-family:var(--font-display); font-size:17px; font-weight:800;
+    color:var(--navy); margin-bottom:4px;
+  }
+  .modal-sub { font-size:12px; color:var(--muted); margin-bottom:24px; }
+  .mfg { display:flex; flex-direction:column; gap:7px; margin-bottom:16px; }
+  .mfg label { font-size:11px; letter-spacing:.8px; text-transform:uppercase; font-weight:600; color:var(--muted); }
+  .mfg textarea {
+    background:var(--surface2); border:1.5px solid var(--border);
+    border-radius:8px; padding:11px 14px; color:var(--text);
+    font-family:'Inter',sans-serif; font-size:13px; resize:vertical;
+    min-height:80px; outline:none; transition:border-color .2s;
+  }
+  .mfg textarea:focus { border-color:var(--orange); box-shadow:0 0 0 3px rgba(244,123,32,.1); }
+
+  /* HISTORIAL BADGE */
+  .hist-badge {
+    display:inline-flex; align-items:center; gap:5px;
+    font-size:10px; background:var(--navy-light); color:var(--navy);
+    border:1px solid var(--navy-mid); padding:3px 10px;
+    border-radius:20px; font-family:var(--font-display); font-weight:700;
+    letter-spacing:.5px;
+  }
+  .hist-chart {
+    display:flex; align-items:flex-end; gap:3px;
+    height:40px; padding:8px 0;
+  }
+  .hist-bar {
+    flex:1; border-radius:3px 3px 0 0;
+    background:var(--orange-light); border:1px solid var(--orange-mid);
+    position:relative; min-width:20px; cursor:pointer; transition:background .15s;
+  }
+  .hist-bar:hover { background:var(--orange-mid); }
+  .hist-bar-fill { position:absolute; bottom:0; left:0; right:0; background:var(--orange); border-radius:2px 2px 0 0; }
+  .hist-wrap { padding:0 24px 0; }
+
   /* CURRENCY NOTICE */
   .currency-note {
     font-size:11px; background:rgba(244,123,32,.06);
@@ -473,6 +520,58 @@
     color:var(--green); margin-bottom:6px; display:flex; gap:8px; align-items:flex-start;
   }
   .ai-error { font-size:12px; color:var(--muted); font-style:italic; padding:8px 0; }
+
+  /* OBJ BLOCKS */
+  .obj-block {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+  }
+  .obj-block-header {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+  }
+  .obj-block-icon { font-size: 16px; }
+  .obj-block-label {
+    font-family: var(--font-display); font-size: 11px; font-weight: 700;
+    letter-spacing: 1.5px; text-transform: uppercase; color: var(--navy);
+  }
+  .obj-block-count {
+    font-size: 10px; color: var(--muted); background: var(--navy-light);
+    padding: 2px 7px; border-radius: 20px; margin-left: auto;
+  }
+  .obj-kpis {
+    display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px;
+  }
+  .obj-kpi {
+    background: var(--white); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 12px; min-width: 90px;
+  }
+  .obj-kpi-7d {
+    background: var(--navy-light); border-color: var(--navy-mid);
+  }
+  .obj-kpi-label {
+    font-size: 10px; color: var(--muted); font-weight: 600;
+    text-transform: uppercase; letter-spacing: .5px; margin-bottom: 3px;
+  }
+  .obj-kpi-val {
+    font-size: 15px; font-weight: 700; color: var(--navy);
+    font-family: var(--font-display);
+  }
+  .obj-badconfig {
+    background: rgba(220,38,38,.08); border: 1.5px solid rgba(220,38,38,.3);
+    border-radius: 8px; padding: 10px 14px; margin-bottom: 8px;
+    color: var(--red);
+  }
+  .obj-diag {
+    font-size: 12px; padding: 6px 10px; border-radius: 6px;
+    margin-bottom: 4px; display: flex; align-items: baseline; gap: 6px;
+  }
+  .obj-diag-critical { background: var(--red-bg); color: var(--red); border-left: 3px solid var(--red); }
+  .obj-diag-warning { background: var(--yellow-bg); color: var(--yellow); border-left: 3px solid var(--yellow); }
+  .obj-diag-positive { background: var(--green-bg); color: var(--green); border-left: 3px solid var(--green); }
+  .obj-diag-info { background: var(--navy-light); color: var(--navy); border-left: 3px solid var(--navy-mid); }
 
   /* FOOTER */
   .footer {
@@ -649,6 +748,31 @@
 
   <div class="footer">
     <strong>POCHOCLO MEDIA</strong> · Sistema de Auditoría Estratégica Meta Ads · Todos los datos son confidenciales
+  </div>
+</div>
+
+<!-- PERFIL CLIENTE MODAL -->
+<div class="modal-overlay" id="perfilModal">
+  <div class="modal-box">
+    <div class="modal-title">Perfil de Cliente</div>
+    <div class="modal-sub" id="perfilModalSub">Configurá el contexto estratégico de esta cuenta</div>
+    <input type="hidden" id="perfilModalKey"/>
+    <div class="mfg">
+      <label>Industria / Vertical</label>
+      <input type="text" id="perfilIndustria" placeholder="ej: Moda, Gastronomía, Inmobiliaria, Servicios B2B..."/>
+    </div>
+    <div class="mfg">
+      <label>Estacionalidad — meses fuertes y meses bajos</label>
+      <input type="text" id="perfilEstacionalidad" placeholder="ej: Pico en Nov-Dic, bajo en Feb-Mar..."/>
+    </div>
+    <div class="mfg">
+      <label>Notas del Estratega</label>
+      <textarea id="perfilNotas" placeholder="ej: Lanzando nueva línea en Abril. Testeando video vs imagen. CPR objetivo $18.000..."></textarea>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:8px;">
+      <button class="btn btn-p" onclick="savePerfilCliente()">✓ Guardar Perfil</button>
+      <button class="btn btn-s" onclick="closePerfilModal()">Cancelar</button>
+    </div>
   </div>
 </div>
 
@@ -920,20 +1044,16 @@ function getRanges(){
 
 // ── META API ──
 async function fetchIns(accountId,since,until,campaignFilter=null){
-  // Normalize account ID: act=123 → act_123, or prepend act_ if needed
   let id = accountId;
   if(id.startsWith('act=')) id = 'act_' + id.slice(4);
   else if(!id.startsWith('act_')) id = 'act_' + id;
   const fields=['spend','impressions','clicks','reach','ctr','cpm','cpc','frequency','actions','action_values','cost_per_action_type','outbound_clicks'].join(',');
-  
   let url;
   if(campaignFilter){
-    // Shared account: filter by campaign name containing client name
     const filter=encodeURIComponent(JSON.stringify([{"field":"campaign.name","operator":"CONTAIN","value":campaignFilter}]));
     url=`https://graph.facebook.com/${cfg.metaVersion}/${id}/insights?fields=${fields}&time_range={"since":"${since}","until":"${until}"}&level=campaign&filtering=${filter}&access_token=${cfg.metaToken}`;
     const res=await fetch(url);const json=await res.json();
     if(json.error)throw new Error(json.error.message);
-    // Aggregate campaign-level data into one result
     if(!json.data||!json.data.length)return null;
     return aggregateCampaigns(json.data);
   } else {
@@ -942,6 +1062,64 @@ async function fetchIns(accountId,since,until,campaignFilter=null){
     if(json.error)throw new Error(json.error.message);
     return json.data?.[0]||null;
   }
+}
+
+// Trae datos a nivel campaña con objective y optimization_goal para desglose por objetivo
+async function fetchCampaigns(accountId,since,until,campaignFilter=null){
+  let id = accountId;
+  if(id.startsWith('act=')) id = 'act_' + id.slice(4);
+  else if(!id.startsWith('act_')) id = 'act_' + id;
+  const fields=['campaign_id','campaign_name','objective','spend','impressions','clicks','reach','ctr','cpm','cpc','frequency','actions','action_values'].join(',');
+  let filterArr=[];
+  if(campaignFilter) filterArr.push({"field":"campaign.name","operator":"CONTAIN","value":campaignFilter});
+  const filterStr=filterArr.length?'&filtering='+encodeURIComponent(JSON.stringify(filterArr)):'';
+  const url=`https://graph.facebook.com/${cfg.metaVersion}/${id}/insights?fields=${fields}&time_range={"since":"${since}","until":"${until}"}&level=campaign${filterStr}&access_token=${cfg.metaToken}`;
+  const res=await fetch(url);const json=await res.json();
+  if(json.error)throw new Error(json.error.message);
+  return json.data||[];
+}
+
+// Agrupa campañas por objetivo Meta y devuelve mapa { objetivo: rawAggregado }
+function groupByObjective(campaigns){
+  const groups={};
+  for(const c of campaigns){
+    const obj=normalizeMetaObjective(c.objective||'UNKNOWN');
+    if(!groups[obj]) groups[obj]=[];
+    groups[obj].push(c);
+  }
+  const result={};
+  for(const [obj,list] of Object.entries(groups)){
+    result[obj]=aggregateCampaigns(list);
+    result[obj]._campaignCount=list.length;
+    result[obj]._campaignNames=list.map(c=>c.campaign_name||'');
+    result[obj]._rawObjective=list[0].objective||'';
+  }
+  return result;
+}
+
+// Mapea objetivos Meta API → nuestro sistema
+function normalizeMetaObjective(metaObj){
+  const map={
+    'OUTCOME_SALES':'ventas',
+    'OUTCOME_LEADS':'leads',
+    'OUTCOME_TRAFFIC':'trafico',
+    'OUTCOME_ENGAGEMENT':'interaccion',
+    'OUTCOME_AWARENESS':'reconocimiento',
+    'OUTCOME_APP_PROMOTION':'app',
+    // Objetivos legacy (pre-2024)
+    'CONVERSIONS':'ventas',
+    'LEAD_GENERATION':'leads',
+    'LINK_CLICKS':'trafico',
+    'TRAFFIC':'trafico',
+    'BRAND_AWARENESS':'reconocimiento',
+    'REACH':'reconocimiento',
+    'POST_ENGAGEMENT':'interaccion',
+    'VIDEO_VIEWS':'reconocimiento',
+    'MESSAGES':'interaccion',
+    'APP_INSTALLS':'app',
+    'PRODUCT_CATALOG_SALES':'ventas',
+  };
+  return map[metaObj]||'otros';
 }
 
 function aggregateCampaigns(data){
@@ -988,20 +1166,33 @@ function extract(raw,obj){
   const ctr=n(raw.ctr),cpm=n(raw.cpm),cpc=n(raw.cpc),freq=n(raw.frequency);
   const acts=raw.actions||[],actV=raw.action_values||[];
   const fA=(arr,types)=>{for(const t of types){const f=arr.find(a=>a.action_type===t);if(f)return n(f.value);}return 0;};
-  const purchases=fA(acts,['purchase','offsite_conversion.fb_pixel_purchase']);
-  const purchaseVal=fA(actV,['purchase','offsite_conversion.fb_pixel_purchase']);
-  const leads=fA(acts,['lead','offsite_conversion.fb_pixel_lead']);
-  const msgs=fA(acts,['onsite_conversion.messaging_conversation_started_7d','onsite_conversion.messaging_first_reply']);
+  const purchases=fA(acts,['purchase','offsite_conversion.fb_pixel_purchase','web_in_store_purchase']);
+  const purchaseVal=fA(actV,['purchase','offsite_conversion.fb_pixel_purchase','web_in_store_purchase']);
+  const leads=fA(acts,[
+    'lead','offsite_conversion.fb_pixel_lead','onsite_conversion.lead_grouped',
+    'leadgen_grouped','contact','submit_application','schedule','find_location'
+  ]);
+  const msgs=fA(acts,[
+    'onsite_conversion.messaging_conversation_started_7d',
+    'onsite_conversion.messaging_first_reply',
+    'onsite_conversion.total_messaging_connection',
+    'onsite_conversion.messaging_welcome_message_view',
+    'onsite_conversion.messaging_user_depth_2_message_send'
+  ]);
   const regs=fA(acts,['complete_registration','offsite_conversion.fb_pixel_complete_registration']);
   const atc=fA(acts,['add_to_cart','offsite_conversion.fb_pixel_add_to_cart']);
   const ic=fA(acts,['initiate_checkout','offsite_conversion.fb_pixel_initiate_checkout']);
-  const lpv=0; // landing_page_views not available in this API version
-  // For ventas/leads use both
+  const lpv=fA(acts,['landing_page_view','omni_landing_page_view']);
   let result=0,rl='',rv=0,cpr=0;
   const useObj=obj==='ventas_leads'?'ventas':obj;
   if(useObj==='ventas'){result=purchases;rl='Compras';rv=purchaseVal;cpr=purchases>0?spend/purchases:0;}
-  else if(useObj==='leads'){result=leads;rl='Leads';cpr=leads>0?spend/leads:0;}
-  else if(useObj==='conversaciones'){result=msgs;rl='Conversaciones';cpr=msgs>0?spend/msgs:0;}
+  else if(useObj==='leads'){
+    if(leads>0){result=leads;rl='Leads';}
+    else if(msgs>0){result=msgs;rl='Conversaciones';}
+    else{result=0;rl='Leads';}
+    cpr=result>0?spend/result:0;
+  }
+  else if(useObj==='conversaciones'){result=msgs>0?msgs:leads;rl='Conversaciones';cpr=result>0?spend/result:0;}
   else if(useObj==='registros'){result=regs;rl='Registros';cpr=regs>0?spend/regs:0;}
   else{rl='—';}
   const extraLeads=obj==='ventas_leads'?leads:0;
@@ -1148,6 +1339,142 @@ function calcPace(spent,budget){
   return{projected:(spent/passed)*days,passed,days};
 }
 
+// ── OBJECTIVE BLOCKS ──
+// KPI principal y evento correcto por objetivo
+const OBJ_META = {
+  ventas:       { label:'Ventas',        kpiLabel:'Compras',        troncal:'purchases', correctEvents:['purchase','offsite_conversion.fb_pixel_purchase'], icon:'🛒' },
+  leads:        { label:'Leads',         kpiLabel:'Leads',          troncal:'leads',     correctEvents:['lead','offsite_conversion.fb_pixel_lead','onsite_conversion.lead_grouped'], icon:'📋' },
+  trafico:      { label:'Tráfico',       kpiLabel:'Clics / LPV',    troncal:'clicks',    correctEvents:['landing_page_view','link_click'], icon:'🔗' },
+  interaccion:  { label:'Interacción',   kpiLabel:'Conversaciones', troncal:'msgs',      correctEvents:['onsite_conversion.messaging_conversation_started_7d','onsite_conversion.total_messaging_connection','post_engagement'], icon:'💬' },
+  reconocimiento:{ label:'Reconocimiento',kpiLabel:'Alcance',       troncal:'reach',     correctEvents:['reach','impressions'], icon:'👁' },
+  app:          { label:'App',           kpiLabel:'Instalaciones',  troncal:'installs',  correctEvents:['mobile_app_install'], icon:'📱' },
+  otros:        { label:'Otros',         kpiLabel:'Resultados',     troncal:'result',    correctEvents:[], icon:'📊' },
+};
+
+function buildObjBlocks(byObjW1, byObjM1, acc){
+  // Unión de todos los objetivos encontrados en ambos períodos
+  const allObjs = new Set([...Object.keys(byObjW1), ...Object.keys(byObjM1)]);
+  const blocks = [];
+  for(const obj of allObjs){
+    const rawW1 = byObjW1[obj]||null;
+    const rawM1 = byObjM1[obj]||null;
+    const meta = OBJ_META[obj]||OBJ_META.otros;
+    // Extraer métricas con el objetivo correcto de Meta (no el del Excel)
+    const w1 = extract(rawW1, obj);
+    const m1 = extract(rawM1, obj);
+    // Análisis por objetivo
+    const diag = analyzeObjBlock(w1, m1, obj, acc.moneda||'ARS');
+    // Detección de evento de optimización incorrecto
+    const badConfig = detectBadOptimization(obj, rawW1||rawM1);
+    blocks.push({
+      obj, meta,
+      w1, m1,
+      diag, badConfig,
+      campaignCount: (rawW1||rawM1)?._campaignCount||0,
+      campaignNames: (rawW1||rawM1)?._campaignNames||[],
+    });
+  }
+  // Ordenar: ventas primero, luego leads, trafico, interaccion, reconocimiento
+  const order = ['ventas','leads','trafico','interaccion','reconocimiento','app','otros'];
+  blocks.sort((a,b)=>order.indexOf(a.obj)-order.indexOf(b.obj));
+  return blocks;
+}
+
+function detectBadOptimization(obj, raw){
+  if(!raw) return null;
+  const acts = raw.actions||[];
+  const n = v=>parseFloat(v||0);
+  // Para mensajes/interaccion: si tiene clics pero no tiene conversaciones → mal configurado
+  if(obj==='interaccion'||obj==='leads'){
+    const linkClicks = n(acts.find(a=>a.action_type==='link_click')?.value||0);
+    const convs = n(acts.find(a=>a.action_type==='onsite_conversion.messaging_conversation_started_7d')?.value||0)
+                + n(acts.find(a=>a.action_type==='onsite_conversion.total_messaging_connection')?.value||0);
+    const leads = n(acts.find(a=>a.action_type==='lead')?.value||0)
+                + n(acts.find(a=>a.action_type==='offsite_conversion.fb_pixel_lead')?.value||0);
+    if(linkClicks>0 && convs===0 && leads===0){
+      return {
+        type:'config',
+        msg: obj==='leads'
+          ? '⚠️ Campaña de Leads optimizando por Clics en el enlace — Meta busca clickers, no leads. Cambiar evento de optimización a Lead o Pixel Lead.'
+          : '⚠️ Campaña de Mensajes optimizando por Clics — Meta busca clickers, no conversaciones. Cambiar a optimización por Conversaciones iniciadas.'
+      };
+    }
+  }
+  // Para ventas: si tiene clics pero 0 compras y 0 ATC → posible mal config o checkout roto
+  if(obj==='ventas'){
+    const purchases = n(acts.find(a=>a.action_type==='purchase')?.value||0)
+                    + n(acts.find(a=>a.action_type==='offsite_conversion.fb_pixel_purchase')?.value||0);
+    const atc = n(acts.find(a=>a.action_type==='add_to_cart')?.value||0)
+              + n(acts.find(a=>a.action_type==='offsite_conversion.fb_pixel_add_to_cart')?.value||0);
+    const ic = n(acts.find(a=>a.action_type==='initiate_checkout')?.value||0)
+             + n(acts.find(a=>a.action_type==='offsite_conversion.fb_pixel_initiate_checkout')?.value||0);
+    const linkClicks = n(acts.find(a=>a.action_type==='link_click')?.value||0);
+    if(linkClicks>50 && purchases===0 && atc===0){
+      return { type:'pixel', msg:'⚠️ Hay clics pero 0 compras y 0 ATC — posible pixel no instalado o mal configurado. Verificar instalación del Pixel de Meta.' };
+    }
+    if(ic>0 && purchases===0){
+      return { type:'checkout', msg:'⚠️ Hay inicios de pago pero 0 compras — rotura de checkout. El tráfico llega pero no finaliza la compra.' };
+    }
+  }
+  return null;
+}
+
+function analyzeObjBlock(w1, m1, obj, moneda){
+  if(!w1 && !m1) return null;
+  const curr = m1||w1;
+  const diags=[], actions=[];
+  // Análisis específico por objetivo — siempre vs período anterior
+  if(obj==='ventas'){
+    if(curr.invFact!==null&&curr.invFact>0){
+      const r=curr.invFact;
+      const t=r<=15?'positive':r<=20?'warning':'critical';
+      diags.push({type:t, title:`Ratio Inv/Fact: ${r.toFixed(1)}%`,
+        detail:`${r<=15?'Saludable':r<=20?'Zona de atención':'Crítico — insostenible'}. ROAS: ${curr.roas?.toFixed(2)||'—'}x`,
+        nums:[`Inversión: ${fmoney(curr.spend,moneda)}`,`Facturación: ${fmoney(curr.rv,moneda)}`,`ROAS: ${curr.roas?.toFixed(2)||'—'}x`]
+      });
+      if(r>20) actions.push('Reducir CPR o aumentar ticket promedio — ratio inversión/ventas crítico');
+    }
+    if(curr.purchases===0&&curr.atc===0&&curr.spend>0){
+      diags.push({type:'critical', title:'0 compras y 0 ATC con inversión activa',
+        detail:'No hay conversiones ni micro-conversiones. Verificar pixel, audiencias y landing.',
+        nums:[`Inversión: ${fmoney(curr.spend,moneda)}`,`Compras: 0`,`ATC: 0`]
+      });
+    }
+  } else if(obj==='reconocimiento'){
+    if(curr.freq>=3.5){
+      const t=curr.freq>=5?'critical':'warning';
+      diags.push({type:t, title:`Frecuencia alta: ${curr.freq.toFixed(1)}`,
+        detail:`La audiencia ve el anuncio ${curr.freq.toFixed(1)} veces en promedio. ${curr.freq>=5?'Nivel crítico.':'Zona de atención.'}`,
+        nums:[`Frecuencia: ${curr.freq.toFixed(1)}`,`Alcance: ${fn(curr.reach)}`]
+      });
+      if(curr.freq>=5) actions.push('Ampliar audiencia o rotar creativos urgente');
+    }
+    if(curr.cpm>0){
+      diags.push({type:'positive', title:`CPM: ${fmoney(curr.cpm,moneda)}`,
+        detail:`Alcance: ${fn(curr.reach)} personas únicas. Impresiones: ${fn(curr.impressions)}.`,
+        nums:[`CPM: ${fmoney(curr.cpm,moneda)}`,`Alcance: ${fn(curr.reach)}`,`Impr: ${fn(curr.impressions)}`]
+      });
+    }
+  } else if(obj==='trafico'){
+    if(curr.ctr>0){
+      const ctrStatus = curr.ctr>=1?'positive':curr.ctr>=0.5?'warning':'critical';
+      diags.push({type:ctrStatus, title:`CTR: ${curr.ctr.toFixed(2)}%`,
+        detail:`${curr.ctr>=1?'CTR saludable':curr.ctr>=0.5?'CTR aceptable, mejorable':'CTR bajo — revisar creativos y audiencia'}. CPC: ${fmoney(curr.cpc,moneda)}`,
+        nums:[`CTR: ${curr.ctr.toFixed(2)}%`,`CPC: ${fmoney(curr.cpc,moneda)}`,`Clics: ${fn(curr.clicks)}`]
+      });
+    }
+  } else {
+    // Leads / Interaccion / otros — solo mostrar el resultado troncal
+    if(curr.result>0&&curr.cpr>0){
+      diags.push({type:'positive', title:`${curr.rl}: ${fn(curr.result)} · CPR: ${fmoney(curr.cpr,moneda)}`,
+        detail:`Resultado troncal del período. Comparar vs períodos anteriores para evaluar evolución.`,
+        nums:[`${curr.rl}: ${fn(curr.result)}`,`CPR: ${fmoney(curr.cpr,moneda)}`,`Inversión: ${fmoney(curr.spend,moneda)}`]
+      });
+    }
+  }
+  return {diags, actions};
+}
+
 // ── AUDIT RUNNER ──
 async function runAudit(){
   if(!accounts.length){showErr('auditErr','No hay cuentas cargadas.');return;}
@@ -1163,16 +1490,24 @@ async function runAudit(){
     updStep(`[${i+1}/${total}] ${acc.cliente}`);updBar(((i+1)/total)*100);
     try{
       const cf = acc.campaignFilter || null;
-      const [w1r,w2r,m1r,m2r]=await Promise.all([
+      // Traer datos globales de cuenta (para totales) y por campaña (para desglose por objetivo)
+      const [w1r,w2r,m1r,m2r,campW1,campM1]=await Promise.all([
         fetchIns(acc.cuentaPub,ranges.w1.since,ranges.w1.until,cf),
         fetchIns(acc.cuentaPub,ranges.w2.since,ranges.w2.until,cf),
         fetchIns(acc.cuentaPub,ranges.m1.since,ranges.m1.until,cf),
         fetchIns(acc.cuentaPub,ranges.m2.since,ranges.m2.until,cf),
+        fetchCampaigns(acc.cuentaPub,ranges.w1.since,ranges.w1.until,cf),
+        fetchCampaigns(acc.cuentaPub,ranges.m1.since,ranges.m1.until,cf),
       ]);
       const w1=extract(w1r,acc.objetivo),w2=extract(w2r,acc.objetivo);
       const m1=extract(m1r,acc.objetivo),m2=extract(m2r,acc.objetivo);
       const wD=analyze(w1,w2,acc.objetivo,false,acc.moneda),mD=analyze(m1,m2,acc.objetivo,true,acc.moneda);
-      results.push({acc,w1,w2,m1,m2,wD,mD,error:null});
+      // Desglose por objetivo de Meta — agrupa campañas activas
+      const byObjW1=groupByObjective(campW1);
+      const byObjM1=groupByObjective(campM1);
+      // Construir bloques de KPI por objetivo
+      const objBlocks=buildObjBlocks(byObjW1,byObjM1,acc);
+      results.push({acc,w1,w2,m1,m2,wD,mD,objBlocks,error:null});
     }catch(e){results.push({acc,error:e.message});}
   }
   renderResults(results,ranges);
@@ -1195,7 +1530,7 @@ function renderResults(results,ranges){
     <div class="sc sc-orange"><div class="sc-label">Cuentas Auditadas</div><div class="sc-val">${results.length}</div><div class="sc-sub">Total en el sistema</div></div>
     <div class="sc sc-red"><div class="sc-label">Críticas</div><div class="sc-val" style="color:var(--red)">${crit}</div><div class="sc-sub">Requieren acción urgente</div></div>
     <div class="sc sc-yellow"><div class="sc-label">En Atención</div><div class="sc-val" style="color:var(--yellow)">${warn}</div><div class="sc-sub">Monitorear de cerca</div></div>
-    <div class="sc sc-green"><div class="sc-label">Inversión Mes (USD)</div><div class="sc-val" style="color:var(--green)">${fmoney(totalSpend,'USD')}</div><div class="sc-sub">Suma de todas las cuentas</div></div>`;
+    <div class="sc sc-green"><div class="sc-label">Inversión Mes</div><div class="sc-val" style="color:var(--green)">${fmoney(totalSpend,'USD')}</div><div class="sc-sub">Suma de todas las cuentas</div></div>`;
   const order={critical:0,warning:1,ok:2,unknown:3};
   results.sort((a,b)=>(order[a.wD?.risk||'unknown']||3)-(order[b.wD?.risk||'unknown']||3));
   document.getElementById('auditCards').innerHTML=results.map((r,i)=>r.error?renderErr(r):renderCard(r,i,ranges)).join('');
@@ -1281,13 +1616,17 @@ function renderPerfBody(r,ranges,budBlock){
     <div class="sdivider" style="margin-bottom:12px;">Comparación de Períodos</div>
     ${compTable(r,ranges,acc.moneda)}
   </div>
+  ${r.objBlocks&&r.objBlocks.length>0?`<div class="dwrap" style="padding-bottom:0;">
+    <div class="sdivider" style="margin-bottom:16px;">KPIs por Objetivo · Campañas Activas</div>
+    ${renderObjBlocks(r.objBlocks,acc)}
+  </div>`:''}
   <div class="dwrap">
     <div style="margin-bottom:24px;">
       <div class="dst">Diagnóstico Semanal · ${ranges.w1.label} vs ${ranges.w2.label}</div>
       ${renderDiag(wD)}
     </div>
     <div>
-      <div class="dst">Diagnóstico Mensual · Mes actual vs período anterior</div>
+      <div class="dst">Diagnóstico Mensual · Mes actual vs mismo período mes anterior</div>
       ${renderDiag(mD)}
     </div>
     <div style="margin-top:24px;">
@@ -1362,7 +1701,7 @@ function compTable(r,ranges,moneda='ARS'){
   
   const cellWithDelta=(curr,prev,pfx,lb)=>{
     if(!curr&&curr!==0)return'<span style="color:var(--muted2)">—</span>';
-    const val=pfx+fn(curr);
+    const val=pfx==='CUR'?fmoney(curr,moneda):(pfx==='%'?fnD(curr,2)+'%':pfx+fn(curr));
     if(!prev||prev===0)return`<strong>${val}</strong>`;
     const d=((curr-prev)/curr)*100;
     const bad=lb?d>0:d<0;
@@ -1376,7 +1715,7 @@ function compTable(r,ranges,moneda='ARS'){
     <th style="text-align:right;">Últimos 7D</th>
     <th style="text-align:right;color:var(--muted2);">7D Anteriores</th>
     <th style="text-align:right;">Mes Actual</th>
-    <th style="text-align:right;color:var(--muted2);">Mes Anterior</th>
+    <th style="text-align:right;color:var(--muted2);">Mismo período mes anterior</th>
   </tr></thead><tbody>
     ${rows.map(([l,a,b,c,d,p,lo])=>`<tr>
       <td style="color:var(--navy);font-family:'Inter',sans-serif;font-weight:500;">${l}</td>
@@ -1558,6 +1897,95 @@ function renderAIConclusion(el, ai){
   el.innerHTML=html;
 }
 
+// ── RENDER OBJ BLOCKS ──
+function renderObjBlocks(blocks, acc){
+  if(!blocks||!blocks.length) return '';
+  return blocks.map(b=>{
+    const {obj, meta, w1, m1, diag, badConfig, campaignCount} = b;
+    const moneda = acc.moneda||'ARS';
+
+    // KPI principal según objetivo
+    let kpiHtml = '';
+    if(obj==='ventas'&&m1){
+      const roasVal = m1.roas?`${m1.roas.toFixed(2)}x`:'—';
+      const ratioVal = m1.invFact?`${m1.invFact.toFixed(1)}%`:'—';
+      const ratioColor = !m1.invFact?'var(--muted)':m1.invFact<=15?'var(--green)':m1.invFact<=20?'var(--yellow)':'var(--red)';
+      kpiHtml=`
+        <div class="obj-kpis">
+          <div class="obj-kpi"><div class="obj-kpi-label">Compras</div><div class="obj-kpi-val">${fn(m1.purchases)}</div></div>
+          <div class="obj-kpi"><div class="obj-kpi-label">Costo x Compra</div><div class="obj-kpi-val">${m1.cpr>0?fmoney(m1.cpr,moneda):'—'}</div></div>
+          <div class="obj-kpi"><div class="obj-kpi-label">ROAS</div><div class="obj-kpi-val" style="color:${m1.roas>=2?'var(--green)':m1.roas>=1?'var(--yellow)':'var(--red)'}">${roasVal}</div></div>
+          <div class="obj-kpi"><div class="obj-kpi-label">Inv/Fact</div><div class="obj-kpi-val" style="color:${ratioColor}">${ratioVal}</div></div>
+          ${w1?`<div class="obj-kpi obj-kpi-7d"><div class="obj-kpi-label">7D · Compras</div><div class="obj-kpi-val">${fn(w1.purchases)}</div></div>
+          <div class="obj-kpi obj-kpi-7d"><div class="obj-kpi-label">7D · CPR</div><div class="obj-kpi-val">${w1.cpr>0?fmoney(w1.cpr,moneda):'—'}</div></div>`:''}
+        </div>`;
+    } else if(obj==='leads'&&(m1||w1)){
+      const cur = m1||w1;
+      kpiHtml=`
+        <div class="obj-kpis">
+          <div class="obj-kpi"><div class="obj-kpi-label">${cur.rl} (Mes)</div><div class="obj-kpi-val">${fn(cur.result)}</div></div>
+          <div class="obj-kpi"><div class="obj-kpi-label">Costo x ${cur.rl}</div><div class="obj-kpi-val">${cur.cpr>0?fmoney(cur.cpr,moneda):'—'}</div></div>
+          <div class="obj-kpi"><div class="obj-kpi-label">Inversión</div><div class="obj-kpi-val">${fmoney(cur.spend,moneda)}</div></div>
+          ${w1?`<div class="obj-kpi obj-kpi-7d"><div class="obj-kpi-label">7D · ${w1.rl}</div><div class="obj-kpi-val">${fn(w1.result)}</div></div>
+          <div class="obj-kpi obj-kpi-7d"><div class="obj-kpi-label">7D · CPR</div><div class="obj-kpi-val">${w1.cpr>0?fmoney(w1.cpr,moneda):'—'}</div></div>`:''}
+        </div>`;
+    } else if(obj==='trafico'&&(m1||w1)){
+      const cur = m1||w1;
+      kpiHtml=`
+        <div class="obj-kpis">
+          <div class="obj-kpi"><div class="obj-kpi-label">Clics (Mes)</div><div class="obj-kpi-val">${fn(cur.clicks)}</div></div>
+          <div class="obj-kpi"><div class="obj-kpi-label">CTR</div><div class="obj-kpi-val" style="color:${cur.ctr>=1?'var(--green)':cur.ctr>=0.5?'var(--yellow)':'var(--red)'}">${cur.ctr.toFixed(2)}%</div></div>
+          <div class="obj-kpi"><div class="obj-kpi-label">CPC</div><div class="obj-kpi-val">${fmoney(cur.cpc,moneda)}</div></div>
+          ${w1?`<div class="obj-kpi obj-kpi-7d"><div class="obj-kpi-label">7D · CTR</div><div class="obj-kpi-val">${w1.ctr.toFixed(2)}%</div></div>
+          <div class="obj-kpi obj-kpi-7d"><div class="obj-kpi-label">7D · CPC</div><div class="obj-kpi-val">${fmoney(w1.cpc,moneda)}</div></div>`:''}
+        </div>`;
+    } else if(obj==='reconocimiento'&&(m1||w1)){
+      const cur = m1||w1;
+      const freqColor = cur.freq>=5?'var(--red)':cur.freq>=3.5?'var(--yellow)':'var(--green)';
+      kpiHtml=`
+        <div class="obj-kpis">
+          <div class="obj-kpi"><div class="obj-kpi-label">Alcance (Mes)</div><div class="obj-kpi-val">${fn(cur.reach)}</div></div>
+          <div class="obj-kpi"><div class="obj-kpi-label">CPM</div><div class="obj-kpi-val">${fmoney(cur.cpm,moneda)}</div></div>
+          <div class="obj-kpi"><div class="obj-kpi-label">Frecuencia</div><div class="obj-kpi-val" style="color:${freqColor}">${cur.freq.toFixed(1)}</div></div>
+          ${w1?`<div class="obj-kpi obj-kpi-7d"><div class="obj-kpi-label">7D · Alcance</div><div class="obj-kpi-val">${fn(w1.reach)}</div></div>
+          <div class="obj-kpi obj-kpi-7d"><div class="obj-kpi-label">7D · Freq</div><div class="obj-kpi-val" style="color:${w1.freq>=3.5?'var(--yellow)':'inherit'}">${w1.freq.toFixed(1)}</div></div>`:''}
+        </div>`;
+    } else if((m1||w1)){
+      const cur = m1||w1;
+      kpiHtml=`
+        <div class="obj-kpis">
+          <div class="obj-kpi"><div class="obj-kpi-label">${cur.rl||'Resultados'}</div><div class="obj-kpi-val">${fn(cur.result)}</div></div>
+          <div class="obj-kpi"><div class="obj-kpi-label">CPR</div><div class="obj-kpi-val">${cur.cpr>0?fmoney(cur.cpr,moneda):'—'}</div></div>
+          <div class="obj-kpi"><div class="obj-kpi-label">Inversión</div><div class="obj-kpi-val">${fmoney(cur.spend,moneda)}</div></div>
+        </div>`;
+    }
+
+    // Alerta de mala configuración — PRIORIDAD #1
+    const badConfigHtml = badConfig ? `
+      <div class="obj-badconfig">
+        <span style="font-size:13px;font-weight:600;">${badConfig.msg}</span>
+      </div>` : '';
+
+    // Diagnósticos del bloque
+    const diagHtml = diag&&diag.diags.length ? diag.diags.map(d=>`
+      <div class="obj-diag obj-diag-${d.type}">
+        <span style="font-weight:600;font-size:12px;">${d.title}</span>
+        <span style="font-size:11px;color:var(--muted);margin-left:8px;">${d.detail}</span>
+      </div>`).join('') : '';
+
+    return `<div class="obj-block">
+      <div class="obj-block-header">
+        <span class="obj-block-icon">${meta.icon}</span>
+        <span class="obj-block-label">${meta.label}</span>
+        <span class="obj-block-count">${campaignCount} campaña${campaignCount!==1?'s':''}</span>
+      </div>
+      ${badConfigHtml}
+      ${kpiHtml}
+      ${diagHtml}
+    </div>`;
+  }).join('');
+}
+
 function exportHTML(){const b=new Blob([document.documentElement.outerHTML],{type:'text/html'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`pochoclo-auditoria-${new Date().toISOString().split('T')[0]}.html`;a.click();}
 
 // ── PASSWORD ──
@@ -1585,6 +2013,477 @@ function initApp(){
     // Show gate, focus input
     setTimeout(()=>document.getElementById('pwdInput').focus(), 100);
   }
+}
+
+
+// ── PERFIL DE CLIENTE ──
+function getPerfilKey(acc){ return 'pm_perfil_' + (acc.cuentaPub||acc.cliente).replace(/[^a-z0-9]/gi,'_'); }
+
+function getPerfil(acc){
+  try{ return JSON.parse(localStorage.getItem(getPerfilKey(acc))||'{}'); }catch(e){ return {}; }
+}
+
+function openPerfilModal(accIdx){
+  const acc = accounts[accIdx];
+  if(!acc) return;
+  const p = getPerfil(acc);
+  document.getElementById('perfilModalKey').value = getPerfilKey(acc);
+  document.getElementById('perfilModalSub').textContent = acc.cliente;
+  document.getElementById('perfilIndustria').value = p.industria||'';
+  document.getElementById('perfilEstacionalidad').value = p.estacionalidad||'';
+  document.getElementById('perfilNotas').value = p.notas||'';
+  document.getElementById('perfilModal').classList.add('active');
+}
+
+function closePerfilModal(){
+  document.getElementById('perfilModal').classList.remove('active');
+}
+
+function savePerfilCliente(){
+  const key = document.getElementById('perfilModalKey').value;
+  const data = {
+    industria: document.getElementById('perfilIndustria').value.trim(),
+    estacionalidad: document.getElementById('perfilEstacionalidad').value.trim(),
+    notas: document.getElementById('perfilNotas').value.trim(),
+    updatedAt: new Date().toLocaleDateString('es-AR')
+  };
+  try{ localStorage.setItem(key, JSON.stringify(data)); }catch(e){}
+  closePerfilModal();
+  // Update perfil badge if visible
+  document.querySelectorAll('[data-perfil-key="'+key+'"]').forEach(el=>{
+    el.textContent = '✎ Perfil';
+    el.style.color = 'var(--green)';
+    el.style.borderColor = 'var(--green)';
+  });
+}
+
+// ── HISTORIAL META API (6 meses) con cache 24hs ──
+function getHistorialCacheKey(acc){
+  return 'pm_hist_' + (acc.cuentaPub||acc.cliente).replace(/[^a-z0-9]/gi,'_');
+}
+
+async function fetchHistorial(acc){
+  // Check cache - valid for 24hs
+  try{
+    const cached = localStorage.getItem(getHistorialCacheKey(acc));
+    if(cached){
+      const parsed = JSON.parse(cached);
+      const age = (Date.now() - parsed.ts) / 1000 / 3600;
+      if(age < 24 && parsed.data && parsed.data.length) return parsed.data;
+    }
+  }catch(e){}
+
+  try{
+    const now = new Date();
+    const months = [];
+    for(let i=5; i>=0; i--){
+      const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+      const desde = d.toISOString().split('T')[0];
+      const isCurrentMonth = i === 0;
+      const hasta = isCurrentMonth
+        ? new Date(now.getFullYear(), now.getMonth(), now.getDate()-1).toISOString().split('T')[0]
+        : new Date(d.getFullYear(), d.getMonth()+1, 0).toISOString().split('T')[0];
+      const label = MONTH_NAMES[d.getMonth()] + ' ' + d.getFullYear().toString().slice(2);
+      months.push({desde, hasta, label, isCurrent: isCurrentMonth});
+    }
+    const results = await Promise.all(months.map(async m => {
+      const cf = acc.campaignFilter || null;
+      const raw = await fetchIns(acc.cuentaPub, m.desde, m.hasta, cf);
+      const ex = extract(raw, acc.objetivo);
+      return { label: m.label, isCurrent: m.isCurrent, desde: m.desde, hasta: m.hasta, data: ex };
+    }));
+    try{ localStorage.setItem(getHistorialCacheKey(acc), JSON.stringify({data: results, ts: Date.now()})); }catch(e){}
+    return results;
+  }catch(e){
+    return null;
+  }
+}
+
+// ── CEREBRO ESTRATÉGICO (SIN API KEY - JS PURO) ──
+async function generateAIConclusion(r){
+  const{acc,w1,w2,m1,m2,wD,mD}=r;
+  const elId='ai_'+safeId(acc.cuentaPub);
+  const el=document.getElementById(elId);
+  if(!el)return;
+
+  // Fetch historial
+  el.innerHTML=`<div class="ai-loading"><div class="lring" style="width:20px;height:20px;border-width:2px;"></div><span style="font-size:12px;color:var(--muted)">Cargando historial de 6 meses...</span></div>`;
+  const historial = await fetchHistorial(acc);
+  const perfil = getPerfil(acc);
+
+  el.innerHTML=`<div class="ai-loading"><div class="lring" style="width:20px;height:20px;border-width:2px;"></div><span style="font-size:12px;color:var(--muted)">Analizando con Cerebro Estratégico...</span></div>`;
+
+  // Small delay for UX
+  await new Promise(res=>setTimeout(res,400));
+
+  const resultado = cerebro(acc, w1, w2, m1, m2, wD, mD, historial, perfil);
+  renderCerebro(el, resultado, acc, historial);
+}
+
+function cerebro(acc, w1, w2, m1, m2, wD, mD, historial, perfil){
+  const obj = acc.objetivo;
+  const moneda = acc.moneda || 'ARS';
+  const useObj = obj==='ventas_leads'?'ventas':obj;
+  const allDiags = [...(wD?.diags||[]), ...(mD?.diags||[])];
+  const crits = allDiags.filter(d=>d.type==='critical');
+  const warns = allDiags.filter(d=>d.type==='warning');
+  const positives = allDiags.filter(d=>d.type==='positive');
+
+  // ── DIAGNÓSTICO EJECUTIVO ──
+  let diagnostico = '';
+  const rlabel = m1?.rl || w1?.rl || 'resultados';
+
+  if(!m1 && !w1){
+    diagnostico = 'Sin datos suficientes para generar diagnóstico. Verificá que la cuenta tenga actividad en los períodos analizados.';
+  } else {
+    // Diagnóstico ejecutivo narrativo
+    const estadoTexto = {
+      critical: `La cuenta de ${acc.cliente} está en zona crítica y necesita intervención esta semana.`,
+      warning: `La cuenta de ${acc.cliente} muestra señales de alerta que conviene atender antes de que impacten en el costo por resultado.`,
+      ok: `La cuenta de ${acc.cliente} opera de forma saludable en los períodos analizados — las métricas están dentro de rangos normales.`,
+      unknown: `La cuenta de ${acc.cliente} es de tipo branding — el análisis está enfocado en eficiencia de alcance y frecuencia.`
+    };
+    diagnostico = estadoTexto[risk] || estadoTexto.unknown;
+
+    // Contexto de inversión y resultados
+    if(m1?.spend){
+      const spendDelta = (m1.spend>0 && m2?.spend>0) ? ((m1.spend-m2.spend)/m2.spend)*100 : null;
+      diagnostico += ` Inversión del mes: ${fmoney(m1.spend, moneda)}${spendDelta!==null?` (${spendDelta>0?'+':''}${spendDelta.toFixed(1)}% vs mismo período mes anterior)`:''}.`;
+    }
+    if(m1?.result && m1.result>0){
+      const resDelta = (m2?.result>0) ? ((m1.result-m2.result)/m2.result)*100 : null;
+      diagnostico += ` ${m1.rl} este mes: ${fn(m1.result)}${resDelta!==null?`, ${resDelta>0?'↑':'↓'} ${Math.abs(resDelta).toFixed(1)}% vs mismo período mes anterior`:''}.`;
+    }
+    if(m1?.cpr && m1.cpr>0){
+      const cprDelta = (m2?.cpr>0) ? ((m1.cpr-m2.cpr)/m2.cpr)*100 : null;
+      const cprTendencia = cprDelta!==null ? (cprDelta<0 ? ` mejorando ${Math.abs(cprDelta).toFixed(1)}% vs mismo período mes anterior` : ` deteriorado ${cprDelta.toFixed(1)}% vs mismo período mes anterior`) : '';
+      diagnostico += ` Costo por ${rlabel.toLowerCase()}: ${fmoney(m1.cpr, moneda)}${cprTendencia}.`;
+    }
+    // Ratio inv/fact con interpretación
+    if(useObj==='ventas' && m1?.invFact){
+      const r=m1.invFact;
+      const interp = r<=10?'nivel óptimo para escalar':r<=15?'rango saludable, monitorear':r<=20?'zona de atención — cada punto más erosiona el margen':'zona crítica — la pauta está consumiendo demasiado del margen del negocio';
+      diagnostico += ` Ratio inversión/facturación: ${r.toFixed(1)}% (${interp}).`;
+    }
+    // Contexto de perfil
+    if(perfil?.industria){
+      diagnostico += ` Vertical: ${perfil.industria}.`;
+    }
+    // Síntesis de problemas
+    if(crits.length>0){
+      diagnostico += ` Puntos críticos detectados: ${crits.map(d=>d.title).join('; ')}.`;
+    } else if(warns.length>0 && risk==='warning'){
+      diagnostico += ` Alertas a monitorear: ${warns.map(d=>d.title).join('; ')}.`;
+    }
+  }
+
+  // ── ANÁLISIS HISTÓRICO ESTRATÉGICO ──
+  let tendencia = null;
+  let analisisHistorial = null;
+
+  if(historial && historial.length >= 2){
+    const validMonths = historial.filter(h=>h.data && h.data.spend>0);
+    if(validMonths.length >= 2){
+      const spends = validMonths.map(h=>h.data.spend);
+      const cprs = validMonths.map(h=>h.data.cpr||0).filter(v=>v>0);
+      const ctrs = validMonths.map(h=>h.data.ctr||0);
+      const cpms = validMonths.map(h=>h.data.cpm||0);
+      const freqs = validMonths.map(h=>h.data.freq||0);
+      const results = validMonths.map(h=>h.data.result||0);
+      const avgSpend = spends.reduce((a,b)=>a+b,0)/spends.length;
+
+      // Tendencia de CPR: ¿sube, baja o estable?
+      let cprTendenciaTipo = null, cprTendenciaPct = null, cprConsecutivos = 0;
+      if(cprs.length >= 3){
+        cprTendenciaPct = ((cprs[cprs.length-1]-cprs[0])/Math.max(cprs[0],1))*100;
+        // Contar meses consecutivos subiendo
+        for(let i=cprs.length-1; i>0; i--){
+          if(cprs[i]>cprs[i-1]) cprConsecutivos++; else break;
+        }
+        if(cprTendenciaPct > 15) cprTendenciaTipo = 'sube';
+        else if(cprTendenciaPct < -15) cprTendenciaTipo = 'baja';
+        else cprTendenciaTipo = 'estable';
+      }
+
+      // Estacionalidad automática: detectar mes con menor y mayor CPR
+      const cprPorMes = validMonths.filter(h=>h.data.cpr>0).map(h=>({label:h.label, cpr:h.data.cpr, spend:h.data.spend, result:h.data.result||0}));
+      const mejorMes = cprPorMes.length ? cprPorMes.reduce((a,b)=>a.cpr<b.cpr?a:b) : null;
+      const peorMes = cprPorMes.length ? cprPorMes.reduce((a,b)=>a.cpr>b.cpr?a:b) : null;
+
+      // Tendencia de frecuencia: ¿hay patrón de saturación recurrente?
+      const freqAltas = freqs.filter(f=>f>=3.5).length;
+      const freqMuyAltas = freqs.filter(f=>f>=5).length;
+
+      // CTR histórico: ¿viene cayendo estructuralmente?
+      const ctrValidos = ctrs.filter(v=>v>0);
+      let ctrTendencia = null;
+      if(ctrValidos.length>=3){
+        const ctrDelta = ((ctrValidos[ctrValidos.length-1]-ctrValidos[0])/Math.max(ctrValidos[0],0.01))*100;
+        if(ctrDelta < -20) ctrTendencia = {tipo:'baja', pct: Math.abs(ctrDelta).toFixed(1)};
+        else if(ctrDelta > 15) ctrTendencia = {tipo:'sube', pct: ctrDelta.toFixed(1)};
+      }
+
+      // Construir narrativa histórica
+      const narrativas = [];
+
+      // CPR estructural
+      if(cprTendenciaTipo === 'sube' && cprConsecutivos >= 2){
+        narrativas.push({
+          tipo: 'critical',
+          titulo: 'Deterioro estructural del costo por resultado',
+          texto: `El costo por ${rlabel.toLowerCase()} viene subiendo hace ${cprConsecutivos} meses consecutivos (${Math.abs(cprTendenciaPct).toFixed(1)}% de aumento en 6 meses). Esto no es un problema puntual — es una tendencia. Puede indicar que la audiencia principal de la cuenta se está agotando, que los creativos no se renuevan con suficiente frecuencia, o que el mercado se está volviendo más competitivo en este segmento. Si no se interviene, el costo por resultado va a seguir subiendo.`
+        });
+      } else if(cprTendenciaTipo === 'baja'){
+        narrativas.push({
+          tipo: 'positive',
+          titulo: 'Mejora estructural de eficiencia',
+          texto: `El costo por ${rlabel.toLowerCase()} viene mejorando de forma sostenida (${Math.abs(cprTendenciaPct).toFixed(1)}% de reducción en 6 meses). Esto indica que las optimizaciones que se hicieron están funcionando — el algoritmo encontró mejores segmentos, los creativos tienen más relevancia, o la estrategia de puja mejoró. Momento oportuno para escalar inversión antes de que la competencia reactive.`
+        });
+      } else if(cprTendenciaTipo === 'estable' && cprs.length>=3){
+        narrativas.push({
+          tipo: 'info',
+          titulo: 'Costo por resultado estable en los últimos meses',
+          texto: `El costo por ${rlabel.toLowerCase()} se mantiene dentro de un rango consistente a lo largo de los últimos ${cprs.length} meses. Esto es señal de una cuenta madura con buena optimización. El riesgo de la estabilidad es la complacencia — si no se testean nuevas audiencias y creativos, en algún momento la saturación va a romper ese equilibrio.`
+        });
+      }
+
+      // Estacionalidad detectada automáticamente
+      if(mejorMes && peorMes && mejorMes.label !== peorMes.label){
+        const diff = ((peorMes.cpr - mejorMes.cpr)/mejorMes.cpr)*100;
+        if(diff > 25){
+          narrativas.push({
+            tipo: 'info',
+            titulo: `Estacionalidad detectada — mejor mes: ${mejorMes.label}`,
+            texto: `Analizando los últimos 6 meses, ${mejorMes.label} fue el mes más eficiente (CPR: ${fmoney(mejorMes.cpr, moneda)}) y ${peorMes.label} el menos eficiente (CPR: ${fmoney(peorMes.cpr, moneda)}) — una diferencia del ${diff.toFixed(0)}%. Esto sugiere estacionalidad real en la demanda. En los meses históricamente mejores vale la pena aumentar la inversión; en los peores, reducir o cambiar el objetivo de las campañas.`
+          });
+        }
+      }
+
+      // Frecuencia recurrente alta
+      if(freqAltas >= 3){
+        narrativas.push({
+          tipo: 'warning',
+          titulo: 'Patrón recurrente de frecuencia alta',
+          texto: `La cuenta tuvo frecuencia por encima de 3.5 en ${freqAltas} de los últimos ${validMonths.length} meses. Esto no es casualidad — es un patrón que indica que los creativos no se rotan con suficiente frecuencia de forma sistemática. Cada vez que esto pasa, el CTR cae y el CPM sube hasta que se rota el creativo. La solución no es reactiva sino preventiva: establecer un calendario fijo de rotación de creativos antes de que la frecuencia llegue a 3.`
+        });
+      }
+
+      // CTR estructuralmente cayendo
+      if(ctrTendencia?.tipo === 'baja'){
+        narrativas.push({
+          tipo: 'warning',
+          titulo: `CTR cayendo estructuralmente (${ctrTendencia.pct}% en 6 meses)`,
+          texto: `El CTR viene bajando de forma sostenida a lo largo de los últimos meses. Una caída estructural de CTR puede tener dos causas: la audiencia ya procesó los anuncios y los ignora (se necesitan audiencias nuevas o lookalikes más amplios), o los creativos no evolucionan al mismo ritmo que lo hace el feed. En cualquiera de los dos casos, el CTR bajo obliga a Meta a cobrar más por cada clic para compensar la menor tasa de interacción.`
+        });
+      }
+
+      tendencia = {
+        meses: validMonths.map(h=>h.label),
+        spends: validMonths.map(h=>h.data.spend),
+        cprs: validMonths.map(h=>h.data.cpr||0),
+        results: validMonths.map(h=>h.data.result||0),
+        freqs: validMonths.map(h=>h.data.freq||0),
+        ctrs: validMonths.map(h=>h.data.ctr||0),
+        avgSpend,
+        mejorMes,
+        peorMes
+      };
+      analisisHistorial = narrativas;
+    }
+  }
+
+  // ── PRÓXIMOS PASOS (con justificación estratégica profunda) ──
+  const pasos = [];
+
+  // Saturación de audiencia
+  const diagSat = allDiags.find(d=>d.title.includes('Saturación'));
+  if(diagSat){
+    const ctrVal = w1?.ctr?.toFixed(2)||'—';
+    const cpmVal = w1?.cpm ? fmoney(w1.cpm, moneda) : '—';
+    pasos.push(`🔴 Renovar audiencias esta semana. Cuando el CTR cae y el CPM sube al mismo tiempo, Meta está mostrando el anuncio a personas que ya lo ignoraron antes — la subasta se encarece porque la relevancia de tu anuncio para esa audiencia bajó. Cuanto más tiempo pase, más caro va a costar cada resultado. CTR actual: ${ctrVal}% · CPM actual: ${cpmVal}.`);
+  }
+
+  // Fatiga creativa / frecuencia alta
+  const diagFreq = allDiags.find(d=>d.title.includes('Fatiga') || d.title.includes('Frecuencia'));
+  if(diagFreq){
+    const freqVal = w1?.freq?.toFixed(1) || m1?.freq?.toFixed(1) || '—';
+    const nivel = parseFloat(freqVal) >= 5 ? 'crítico' : 'de atención';
+    pasos.push(`🔴 Rotar creativos — frecuencia en nivel ${nivel} (${freqVal}x). Cuando una misma persona ve el mismo anuncio ${freqVal} veces, el cerebro empieza a ignorarlo activamente (banner blindness). Esto primero baja el CTR porque nadie hace clic en algo que ya procesó, y después Meta detecta la baja relevancia del anuncio para esa audiencia y lo castiga en la subasta subiendo el CPM. Preparar al menos 2-3 variantes nuevas del anuncio principal.`);
+  }
+
+  // CTR cayó sin CPM subiendo (problema creativo puro)
+  const diagCTR = allDiags.find(d=>d.title.includes('CTR bajó') && !diagSat);
+  if(diagCTR && !diagFreq){
+    const ctrCurr = w1?.ctr?.toFixed(2)||'—';
+    const ctrPrev = w2?.ctr?.toFixed(2)||'—';
+    pasos.push(`⚡ Testear nuevos creativos. El CTR bajó de ${ctrPrev}% a ${ctrCurr}% sin que suba el CPM, lo que indica que el problema está en el anuncio mismo, no en la audiencia. La oferta y la segmentación están bien, pero el creativo perdió capacidad de captar atención en el feed. Probar distinto formato (video vs imagen), distinto hook en los primeros 3 segundos, o distinto ángulo de comunicación.`);
+  }
+
+  // Costo por resultado subió
+  const diagCPR = allDiags.find(d=>d.title.includes('Costo por') && (d.title.includes('aumentó') || d.title.includes('subió')) && d.type==='critical');
+  if(diagCPR){
+    const cprCurr = m1?.cpr ? fmoney(m1.cpr, moneda) : (w1?.cpr ? fmoney(w1.cpr, moneda) : '—');
+    const cprPrev = m2?.cpr ? fmoney(m2.cpr, moneda) : (w2?.cpr ? fmoney(w2.cpr, moneda) : '—');
+    pasos.push(`🔴 Auditar conjuntos de anuncios por eficiencia. El costo por ${rlabel.toLowerCase()} pasó de ${cprPrev} a ${cprCurr} — un deterioro así suele tener una de tres causas: audiencia agotada (ya compraron o no van a comprar), creativo desgastado (baja relevancia), o mayor competencia en la subasta. Identificar los conjuntos con peor CPR, pausarlos y redirigir ese presupuesto a los que mejor están convirtiendo.`);
+  }
+
+  // Checkout / funnel roto
+  const diagCheckout = allDiags.find(d=>d.title.includes('Checkout'));
+  if(diagCheckout){
+    const icVal = m1?.ic ? fn(m1.ic) : '—';
+    const purchVal = m1?.purchases ? fn(m1.purchases) : '—';
+    pasos.push(`🔴 Revisar el proceso de checkout con urgencia. Hay ${icVal} inicios de pago pero solo ${purchVal} compras — la gente llega con intención de comprar y se cae antes de completar. Las causas más comunes: demasiados pasos en el formulario, métodos de pago limitados, precio de envío que aparece tarde, o errores técnicos en mobile. Cada compra perdida en este punto es la más cara porque ya gastaste en llevar a esa persona hasta ahí.`);
+  }
+
+  // CPC subió
+  const diagCPC = allDiags.find(d=>d.title.includes('CPC subió'));
+  if(diagCPC && !diagSat && !diagCPR){
+    const cpcCurr = w1?.cpc ? fmoney(w1.cpc, moneda) : '—';
+    pasos.push(`⚡ Revisar calidad de anuncios. El CPC subió a ${cpcCurr} — cuando el CPC sube sin que suba la frecuencia, generalmente es porque la relevancia del anuncio para la audiencia bajó y Meta empieza a cobrar más caro por cada clic. Revisar el texto del anuncio y asegurarse de que el mensaje conecte claramente con el segmento que está viendo el anuncio.`);
+  }
+
+  // Inversión cambió mucho
+  const diagInv = allDiags.find(d=>d.title.includes('Inversión') && (d.title.includes('aumentó')||d.title.includes('redujo')));
+  if(diagInv){
+    const pct = diagInv.title.match(/[\d.]+%/)?.[0]||'';
+    const dir = diagInv.title.includes('aumentó') ? 'aumentó' : 'redujo';
+    pasos.push(`⚡ Verificar el cambio de inversión con el equipo. La inversión ${dir} ${pct} — un cambio brusco así puede distorsionar todos los demás indicadores. Si fue planificado (lanzamiento, temporada), los cambios en CPM y CTR son esperables mientras el algoritmo re-aprende. Si no fue planificado, revisar límites de gasto diario y campañas activas.`);
+  }
+
+  // Ratio inv/fact alto
+  if(useObj==='ventas' && m1?.invFact && m1.invFact > 20){
+    pasos.push(`🔴 El ratio inversión/facturación está en ${m1.invFact.toFixed(1)}% — por encima del 20% la pauta empieza a ser inviable para la mayoría de los negocios. Significa que de cada ${fmoney(100,'ARS')} que facturás, ${fmoney(m1.invFact,'ARS')} se van en publicidad. Las palancas para mejorar esto son tres: bajar el CPR (eficiencia de la pauta), subir el ticket promedio (estrategia de producto), o mejorar la tasa de conversión del sitio (CRO).`);
+  }
+
+  // Sin problemas graves — oportunidad de escala
+  if(pasos.length === 0 && wD?.risk === 'ok'){
+    if(useObj==='ventas' && m1?.cpr>0){
+      pasos.push(`✓ Las métricas están saludables — este es el momento para escalar. Cuando el CPR es estable (${fmoney(m1.cpr,moneda)}) y el CTR se mantiene, significa que el sistema encontró un equilibrio. Identificar los 2-3 conjuntos con mejor CPR y subir el presupuesto diario un 20-30% para ver si escalan sin deterioro. Si el CPR se mantiene al subir el presupuesto, seguir escalando gradualmente.`);
+    } else if(useObj==='leads'){
+      pasos.push(`✓ Cuenta estable — foco en calidad. Con el volumen de ${rlabel.toLowerCase()} actual (${fn(m1?.result||0)} este mes), el próximo paso es analizar qué porcentaje de esos leads se están cerrando offline. Si la tasa de cierre es baja, el problema no es la pauta sino la calificación de la audiencia o el proceso de seguimiento comercial.`);
+    } else {
+      pasos.push(`✓ Las métricas de branding están en orden. Frecuencia en ${(m1?.freq||w1?.freq||0).toFixed(1)}x y CPM estable. Evaluar si ampliar la audiencia para mantener alcance fresco sin que la frecuencia siga subiendo.`);
+    }
+  }
+
+  // Fallback genérico
+  if(pasos.length < 2){
+    if(useObj==='leads'){
+      pasos.push(`📋 Analizar la calidad de los ${fn(m1?.result||0)} leads del mes. El volumen importa, pero lo que determina el éxito de la cuenta es cuántos de esos leads se convierten en clientes. Si la tasa de cierre baja, Meta puede estar alcanzando personas con intención de consultar pero no de comprar — revisar la segmentación y el copy del anuncio para calificar mejor.`);
+    }
+    if(useObj==='ventas' && m1?.roas && m1.roas > 0){
+      const roasMsg = m1.roas >= 4 ? `Con ROAS de ${m1.roas.toFixed(2)}x la cuenta está siendo muy rentable — hay margen para aumentar inversión y capturar más demanda antes de que la competencia lo haga.` : `ROAS de ${m1.roas.toFixed(2)}x — revisar si el margen del producto soporta este nivel de inversión o si se necesita mejorar la tasa de conversión del sitio primero.`;
+      pasos.push(`📊 ${roasMsg}`);
+    }
+  }
+
+  // ── ALERTA PRESUPUESTO ──
+  let alertaPresupuesto = null;
+  if(m1?.spend && acc.pres_ars > 0){
+    const now = new Date();
+    const dia = now.getDate();
+    const diasMes = new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
+    const proyectado = (m1.spend / dia) * diasMes;
+    const pct = (proyectado / acc.pres_ars) * 100;
+    if(pct > 110) alertaPresupuesto = `Proyección mensual (${fmoney(proyectado,moneda)}) supera el presupuesto aprobado (${fmoney(acc.pres_ars,moneda)}) en ${(pct-100).toFixed(0)}%. Ajustar límites diarios.`;
+    else if(pct < 70) alertaPresupuesto = `Proyección mensual (${fmoney(proyectado,moneda)}) está por debajo del presupuesto aprobado (${fmoney(acc.pres_ars,moneda)}). Revisar si hay campañas pausadas o restricciones de entrega.`;
+  }
+
+  // ── OPORTUNIDAD ──
+  let oportunidad = null;
+  if(m1?.cpr>0 && m2?.cpr>0){
+    const mejora = ((m2.cpr - m1.cpr)/m2.cpr)*100;
+    if(mejora > 15) oportunidad = `CPR mejoró ${mejora.toFixed(1)}% vs mismo período mes anterior — buen momento para escalar presupuesto en conjuntos eficientes.`;
+  }
+  if(!oportunidad && w1?.result>0 && w2?.result>0){
+    const crec = ((w1.result-w2.result)/Math.max(w2.result,1))*100;
+    if(crec>20) oportunidad = `Volumen de ${rlabel.toLowerCase()} creció ${crec.toFixed(1)}% esta semana — revisar si se puede ampliar audiencia o aumentar presupuesto diario.`;
+  }
+  if(!oportunidad && perfil?.estacionalidad){
+    const mes = MONTH_NAMES[new Date().getMonth()];
+    if(perfil.estacionalidad.toLowerCase().includes(mes.toLowerCase())){
+      oportunidad = `El mes actual (${mes}) figura como período relevante en la estacionalidad del cliente — considerar aumentar presupuesto o intensidad.`;
+    }
+  }
+  if(!oportunidad && positives.length>0) oportunidad = `Métricas estables y sin anomalías — evaluar test de nuevas audiencias o creativos para escalar resultados.`;
+
+  return { diagnostico, tendencia, pasos, alertaPresupuesto, oportunidad, perfil };
+}
+
+function renderCerebro(el, r, acc, historial){
+  let html = '';
+
+  // Perfil badge + botón editar
+  const perfKey = getPerfilKey(acc);
+  const accIdx = accounts.findIndex(a=>a.cuentaPub===acc.cuentaPub);
+  const perfilBtn = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+    <span style="font-size:11px;color:var(--muted);">
+      ${r.perfil?.industria?'<strong style="color:var(--navy)">'+r.perfil.industria+'</strong>':'Sin industria configurada'}
+      ${r.perfil?.estacionalidad?' · '+r.perfil.estacionalidad:''}
+    </span>
+    <button onclick="openPerfilModal(${accIdx})" data-perfil-key="${perfKey}" style="font-size:11px;padding:4px 12px;border:1px solid var(--border);border-radius:6px;background:white;cursor:pointer;color:${r.perfil?.industria?'var(--green)':'var(--muted)'};font-family:var(--font-display);font-weight:700;">
+      ${r.perfil?.industria?'✎ Editar Perfil':'+ Cargar Perfil'}
+    </button>
+  </div>`;
+  html += perfilBtn;
+
+  // Notas del estratega si existen
+  if(r.perfil?.notas){
+    html += `<div style="background:rgba(27,42,74,.04);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:var(--navy);line-height:1.6;">
+      <span style="font-size:10px;letter-spacing:1px;text-transform:uppercase;font-weight:700;color:var(--muted);display:block;margin-bottom:4px;">Notas del Estratega</span>
+      ${r.perfil.notas}
+    </div>`;
+  }
+
+  // Historial gráfico
+  if(r.tendencia && r.tendencia.spends.length >= 2){
+    const maxSpend = Math.max(...r.tendencia.spends);
+    const bars = r.tendencia.spends.map((s,i)=>{
+      const pct = maxSpend>0?(s/maxSpend)*100:0;
+      return `<div class="hist-bar" title="${r.tendencia.meses[i]}: ${fmoney(s,acc.moneda)}">
+        <div class="hist-bar-fill" style="height:${pct}%"></div>
+      </div>`;
+    }).join('');
+    const labels = r.tendencia.meses.map(m=>`<span style="font-size:9px;color:var(--muted2);flex:1;text-align:center;">${m}</span>`).join('');
+    html += `<div class="ai-section">
+      <div class="ai-section-title">Historial 6 Meses · Inversión</div>
+      <div class="hist-chart">${bars}</div>
+      <div style="display:flex;gap:3px;margin-top:2px;">${labels}</div>
+      ${r.tendencia.trendMsg?`<div style="font-size:11px;color:var(--muted);margin-top:6px;">📈 ${r.tendencia.trendMsg}</div>`:''}
+    </div>`;
+  }
+
+  // Diagnóstico ejecutivo
+  html += `<div class="ai-section">
+    <div class="ai-section-title">Diagnóstico Ejecutivo</div>
+    <div class="ai-exec">${r.diagnostico}</div>
+  </div>`;
+
+  // Alerta presupuesto
+  if(r.alertaPresupuesto){
+    html += `<div class="ai-section">
+      <div class="ai-section-title">Alerta de Presupuesto</div>
+      <div class="ai-alert">⚡ ${r.alertaPresupuesto}</div>
+    </div>`;
+  }
+
+  // Próximos pasos
+  if(r.pasos?.length){
+    html += `<div class="ai-section">
+      <div class="ai-section-title">Próximos Pasos Esta Semana</div>
+      ${r.pasos.map((s,i)=>`<div class="ai-step"><div class="ai-step-num">${i+1}</div><div>${s}</div></div>`).join('')}
+    </div>`;
+  }
+
+  // Oportunidad
+  if(r.oportunidad){
+    html += `<div class="ai-section">
+      <div class="ai-section-title">Oportunidad Detectada</div>
+      <div class="ai-opp">✦ ${r.oportunidad}</div>
+    </div>`;
+  }
+
+  el.innerHTML = html;
 }
 
 initApp();
