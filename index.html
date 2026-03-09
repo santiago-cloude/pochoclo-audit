@@ -720,6 +720,7 @@
           <th>Cliente</th>
           <th>Cuenta publicitaria</th>
           <th>Objetivo</th>
+          <th>Filtro campaña</th>
           <th>Inversión Meta (USD)</th>
           <th>Presupuesto (ARS)</th>
         </tr>
@@ -764,6 +765,23 @@
     <div class="mfg">
       <label>Estacionalidad — meses fuertes y meses bajos</label>
       <input type="text" id="perfilEstacionalidad" placeholder="ej: Pico en Nov-Dic, bajo en Feb-Mar..."/>
+    </div>
+    <div class="mfg">
+      <label>Filtro de campaña <span style="font-weight:400;color:var(--muted)">(para cuentas que comparten cuenta publicitaria)</span></label>
+      <input type="text" id="perfilCampFilter" placeholder="ej: ESTEREO COLOR — fragmento del nombre de campaña"/>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;">Si la cuenta tiene múltiples clientes en el mismo Ad Account, ingresá un texto que aparezca en el nombre de las campañas de este cliente.</div>
+    </div>
+    <div class="mfg">
+      <label>Forzar objetivo <span style="font-weight:400;color:var(--muted)">(overridea el objetivo del Excel)</span></label>
+      <select id="perfilForzarObj" style="width:100%;padding:8px 12px;border:1px solid var(--border2);border-radius:8px;font-size:13px;color:var(--text);background:white;font-family:inherit;">
+        <option value="">— Sin override (usar el del Excel)</option>
+        <option value="ventas">VENTAS</option>
+        <option value="leads">LEADS</option>
+        <option value="branding">BRANDING</option>
+        <option value="trafico">TRÁFICO</option>
+        <option value="conversaciones">CONVERSACIONES</option>
+        <option value="registros">REGISTROS</option>
+      </select>
     </div>
     <div class="mfg">
       <label>Notas del Estratega</label>
@@ -1003,6 +1021,7 @@ function renderAccTable(){
       <td><label for="${safeId}" style="cursor:pointer;"><strong style="color:var(--navy)">${a.cliente}</strong></label></td>
       <td style="font-size:11px;color:var(--muted);font-family:'Inter',sans-serif">${a.cuentaPub}</td>
       <td><span class="tag ${tc}">${objLabel[a.objetivo]||a.objetivo}</span></td>
+      <td style="font-size:11px;">${(()=>{const p=getPerfil(a);const f=p.campFilter||a.campaignFilter||null;return f?`<span style="background:rgba(244,121,32,.12);color:var(--orange);padding:2px 7px;border-radius:4px;font-family:'Inter',sans-serif;">${f}</span>`:'<span style="color:var(--muted2)">—</span>';})()}</td>
       <td style="font-family:'Inter',sans-serif">${fn(a.inv_usd)}</td>
       <td style="font-family:'Inter',sans-serif">${a.pres_ars>0?(a.moneda||'ARS')+' '+fn(a.pres_ars):'—'}</td>
     </tr>`;
@@ -1496,7 +1515,13 @@ async function runAudit(){
     const acc=selected[i];
     updStep(`[${i+1}/${total}] ${acc.cliente}`);updBar(((i+1)/total)*100);
     try{
-      const cf = acc.campaignFilter || null;
+      // Filtro de campaña: perfil del cliente > isShared automático > null
+      const perfilAcc = getPerfil(acc);
+      const cf = perfilAcc.campFilter || acc.campaignFilter || null;
+      // Objetivo efectivo: override del perfil > objetivo del Excel
+      const objEfectivo = perfilAcc.forzarObj || acc.objetivo;
+      // acc efectivo con objetivo overrideado (para render, cerebro, etc.)
+      const accEf = perfilAcc.forzarObj ? {...acc, objetivo: objEfectivo} : acc;
       // Traer datos globales de cuenta (para totales) y por campaña (para desglose por objetivo)
       const [w1r,w2r,m1r,m2r,campW1,campM1]=await Promise.all([
         fetchIns(acc.cuentaPub,ranges.w1.since,ranges.w1.until,cf),
@@ -1506,15 +1531,15 @@ async function runAudit(){
         fetchCampaigns(acc.cuentaPub,ranges.w1.since,ranges.w1.until,cf),
         fetchCampaigns(acc.cuentaPub,ranges.m1.since,ranges.m1.until,cf),
       ]);
-      const w1=extract(w1r,acc.objetivo),w2=extract(w2r,acc.objetivo);
-      const m1=extract(m1r,acc.objetivo),m2=extract(m2r,acc.objetivo);
-      const wD=analyze(w1,w2,acc.objetivo,false,acc.moneda),mD=analyze(m1,m2,acc.objetivo,true,acc.moneda);
+      const w1=extract(w1r,objEfectivo),w2=extract(w2r,objEfectivo);
+      const m1=extract(m1r,objEfectivo),m2=extract(m2r,objEfectivo);
+      const wD=analyze(w1,w2,objEfectivo,false,acc.moneda),mD=analyze(m1,m2,objEfectivo,true,acc.moneda);
       // Desglose por objetivo de Meta — agrupa campañas activas
       const byObjW1=groupByObjective(campW1);
       const byObjM1=groupByObjective(campM1);
       // Construir bloques de KPI por objetivo
-      const objBlocks=buildObjBlocks(byObjW1,byObjM1,acc);
-      results.push({acc,w1,w2,m1,m2,wD,mD,objBlocks,error:null});
+      const objBlocks=buildObjBlocks(byObjW1,byObjM1,accEf);
+      results.push({acc:accEf,w1,w2,m1,m2,wD,mD,objBlocks,error:null});
     }catch(e){results.push({acc,error:e.message});}
   }
   renderResults(results,ranges);
@@ -1953,6 +1978,8 @@ function openPerfilModal(accIdx){
   document.getElementById('perfilIndustria').value = p.industria||'';
   document.getElementById('perfilEstacionalidad').value = p.estacionalidad||'';
   document.getElementById('perfilNotas').value = p.notas||'';
+  document.getElementById('perfilCampFilter').value = p.campFilter||'';
+  document.getElementById('perfilForzarObj').value = p.forzarObj||'';
   document.getElementById('perfilModal').classList.add('active');
 }
 
@@ -1966,6 +1993,8 @@ function savePerfilCliente(){
     industria: document.getElementById('perfilIndustria').value.trim(),
     estacionalidad: document.getElementById('perfilEstacionalidad').value.trim(),
     notas: document.getElementById('perfilNotas').value.trim(),
+    campFilter: document.getElementById('perfilCampFilter').value.trim(),
+    forzarObj: document.getElementById('perfilForzarObj').value,
     updatedAt: new Date().toLocaleDateString('es-AR')
   };
   try{ localStorage.setItem(key, JSON.stringify(data)); }catch(e){}
@@ -2008,9 +2037,11 @@ async function fetchHistorial(acc){
       months.push({desde, hasta, label, isCurrent: isCurrentMonth});
     }
     const results = await Promise.all(months.map(async m => {
-      const cf = acc.campaignFilter || null;
+      const perfilH = getPerfil(acc);
+      const cf = perfilH.campFilter || acc.campaignFilter || null;
+      const objH = perfilH.forzarObj || acc.objetivo;
       const raw = await fetchIns(acc.cuentaPub, m.desde, m.hasta, cf);
-      const ex = extract(raw, acc.objetivo);
+      const ex = extract(raw, objH);
       return { label: m.label, isCurrent: m.isCurrent, desde: m.desde, hasta: m.hasta, data: ex };
     }));
     try{ localStorage.setItem(getHistorialCacheKey(acc), JSON.stringify({data: results, ts: Date.now()})); }catch(e){}
@@ -2056,7 +2087,10 @@ function cerebro(acc, w1, w2, m1, m2, wD, mD, historial, perfil){
   const rlabel = m1?.rl || w1?.rl || 'resultados';
 
   if(!m1 && !w1){
-    diagnostico = 'Sin datos suficientes para generar diagnóstico. Verificá que la cuenta tenga actividad en los períodos analizados.';
+    const noDataMsg = acc.objetivo==='branding'
+      ? 'Sin datos en los períodos analizados. Para cuentas de branding verificá: (1) que la campaña esté activa en el período, (2) que el filtro de campaña en el Excel coincida exactamente con el nombre real, (3) que la cuenta publicitaria sea la correcta.'
+      : 'Sin datos suficientes para generar diagnóstico. Verificá que la cuenta tenga actividad en los períodos analizados.';
+    diagnostico = noDataMsg;
   } else {
     // Diagnóstico ejecutivo narrativo
     const estadoTexto = {
@@ -2346,6 +2380,7 @@ function renderCerebro(el, r, acc, historial){
     <button onclick="openPerfilModal(${accIdx})" data-perfil-key="${perfKey}" style="font-size:11px;padding:4px 12px;border:1px solid var(--border);border-radius:6px;background:white;cursor:pointer;color:${r.perfil?.industria?'var(--green)':'var(--muted)'};font-family:var(--font-display);font-weight:700;">
       ${r.perfil?.industria?'✎ Editar Perfil':'+ Cargar Perfil'}
     </button>
+    <button onclick="(()=>{const key=getHistorialCacheKey({cuentaPub:'${acc.cuentaPub}',cliente:'${acc.cliente}'});try{localStorage.removeItem(key);}catch(e){}const r=window._lastResults?.find(x=>x.acc?.cuentaPub==='${acc.cuentaPub}');if(r)generateAIConclusion(r);})()" style="font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:white;cursor:pointer;color:var(--muted);font-family:var(--font-display);" title="Refrescar historial">&#8635; Historial</button>
   </div>`;
   html += perfilBtn;
 
