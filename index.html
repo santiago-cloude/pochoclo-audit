@@ -1358,30 +1358,37 @@ const OBJ_META = {
   otros:        { label:'Otros',         kpiLabel:'Resultados',     troncal:'result',    correctEvents:[], icon:'📊' },
 };
 
-function buildObjBlocks(byObjW1, byObjM1, acc){
-  // Unión de todos los objetivos encontrados en ambos períodos
-  const allObjs = new Set([...Object.keys(byObjW1), ...Object.keys(byObjM1)]);
+function buildObjBlocks(byObjW1, byObjW2, byObjM1, byObjM2, acc){
+  // Unión de todos los objetivos encontrados en todos los períodos
+  const allObjs = new Set([
+    ...Object.keys(byObjW1), ...Object.keys(byObjW2),
+    ...Object.keys(byObjM1), ...Object.keys(byObjM2)
+  ]);
   const blocks = [];
   for(const obj of allObjs){
     const rawW1 = byObjW1[obj]||null;
+    const rawW2 = byObjW2[obj]||null;
     const rawM1 = byObjM1[obj]||null;
+    const rawM2 = byObjM2[obj]||null;
     const meta = OBJ_META[obj]||OBJ_META.otros;
-    // Extraer métricas con el objetivo correcto de Meta (no el del Excel)
     const w1 = extract(rawW1, obj);
+    const w2 = extract(rawW2, obj);
     const m1 = extract(rawM1, obj);
-    // Análisis por objetivo
-    const diag = analyzeObjBlock(w1, m1, obj, acc.moneda||'ARS');
-    // Detección de evento de optimización incorrecto
+    const m2 = extract(rawM2, obj);
+    // Análisis comparativo por objetivo
+    const diagW = analyzeObjBlock(w1, w2, obj, acc.moneda||'ARS', false);
+    const diagM = analyzeObjBlock(m1, m2, obj, acc.moneda||'ARS', true);
+    // diag legacy (para compatibilidad con renderObjBlocks antiguo)
+    const diag = diagM||diagW;
     const badConfig = detectBadOptimization(obj, rawW1||rawM1);
     blocks.push({
       obj, meta,
-      w1, m1,
-      diag, badConfig,
+      w1, w2, m1, m2,
+      diagW, diagM, badConfig,
       campaignCount: (rawW1||rawM1)?._campaignCount||0,
       campaignNames: (rawW1||rawM1)?._campaignNames||[],
     });
   }
-  // Ordenar: ventas primero, luego leads, trafico, interaccion, reconocimiento
   const order = ['ventas','leads','trafico','interaccion','reconocimiento','app','otros'];
   blocks.sort((a,b)=>order.indexOf(a.obj)-order.indexOf(b.obj));
   return blocks;
@@ -1426,20 +1433,39 @@ function detectBadOptimization(obj, raw){
   return null;
 }
 
-function analyzeObjBlock(w1, m1, obj, moneda){
-  if(!w1 && !m1) return null;
-  const curr = m1||w1;
+function analyzeObjBlock(curr, prev, obj, moneda, isMensual){
+  if(!curr) return {diags:[], actions:[]};
   const diags=[], actions=[];
-  // Análisis específico por objetivo — siempre vs período anterior
+  const delta=(a,b,inv=false)=>{
+    if(!a||!b||b===0) return '';
+    const p=((a-b)/b)*100;
+    const good=(inv?p<0:p>0);
+    return `<span style="font-size:10px;font-weight:600;color:${good?'var(--green)':'var(--red)'}"> ${p>0?'↑':'↓'}${Math.abs(p).toFixed(1)}%</span>`;
+  };
+  const period = isMensual ? 'Mes' : '7D';
+
   if(obj==='ventas'){
     if(curr.invFact!==null&&curr.invFact>0){
       const r=curr.invFact;
       const t=r<=15?'positive':r<=20?'warning':'critical';
-      diags.push({type:t, title:`Ratio Inv/Fact: ${r.toFixed(1)}%`,
-        detail:`${r<=15?'Saludable':r<=20?'Zona de atención':'Crítico — insostenible'}. ROAS: ${curr.roas?.toFixed(2)||'—'}x`,
+      const roasDelta = prev ? delta(curr.roas, prev.roas) : '';
+      diags.push({type:t,
+        title:`Ratio Inv/Fact: ${r.toFixed(1)}%${prev?` (ant: ${prev.invFact?.toFixed(1)||'—'}%)`:''}`,
+        detail:`${r<=15?'Saludable':r<=20?'Zona de atención':'Crítico — insostenible'}. ROAS: ${curr.roas?.toFixed(2)||'—'}x${roasDelta}`,
         nums:[`Inversión: ${fmoney(curr.spend,moneda)}`,`Facturación: ${fmoney(curr.rv,moneda)}`,`ROAS: ${curr.roas?.toFixed(2)||'—'}x`]
       });
       if(r>20) actions.push('Reducir CPR o aumentar ticket promedio — ratio inversión/ventas crítico');
+    }
+    if(curr.cpr>0&&prev?.cpr>0){
+      const pDelta = ((curr.cpr-prev.cpr)/prev.cpr)*100;
+      if(Math.abs(pDelta)>10){
+        const t=pDelta>0?'warning':'positive';
+        diags.push({type:t,
+          title:`CPR ${pDelta>0?'subió':'bajó'} ${Math.abs(pDelta).toFixed(1)}% vs ${isMensual?'mes ant':'sem ant'}`,
+          detail:`${period} actual: ${fmoney(curr.cpr,moneda)} · Anterior: ${fmoney(prev.cpr,moneda)}`,
+          nums:[`CPR actual: ${fmoney(curr.cpr,moneda)}`,`Anterior: ${fmoney(prev.cpr,moneda)}`]
+        });
+      }
     }
     if(curr.purchases===0&&curr.atc===0&&curr.spend>0){
       diags.push({type:'critical', title:'0 compras y 0 ATC con inversión activa',
@@ -1450,31 +1476,36 @@ function analyzeObjBlock(w1, m1, obj, moneda){
   } else if(obj==='reconocimiento'){
     if(curr.freq>=3.5){
       const t=curr.freq>=5?'critical':'warning';
-      diags.push({type:t, title:`Frecuencia alta: ${curr.freq.toFixed(1)}`,
+      diags.push({type:t, title:`Frecuencia alta: ${curr.freq.toFixed(1)}${prev?` (ant: ${prev.freq?.toFixed(1)||'—'})`:''}`,
         detail:`La audiencia ve el anuncio ${curr.freq.toFixed(1)} veces en promedio. ${curr.freq>=5?'Nivel crítico.':'Zona de atención.'}`,
         nums:[`Frecuencia: ${curr.freq.toFixed(1)}`,`Alcance: ${fn(curr.reach)}`]
       });
       if(curr.freq>=5) actions.push('Ampliar audiencia o rotar creativos urgente');
     }
     if(curr.cpm>0){
-      diags.push({type:'positive', title:`CPM: ${fmoney(curr.cpm,moneda)}`,
-        detail:`Alcance: ${fn(curr.reach)} personas únicas. Impresiones: ${fn(curr.impressions)}.`,
+      const cpmDelta = prev?.cpm>0 ? delta(curr.cpm, prev.cpm, true) : '';
+      diags.push({type:'positive', title:`CPM: ${fmoney(curr.cpm,moneda)}${cpmDelta}`,
+        detail:`Alcance: ${fn(curr.reach)} personas únicas.${prev?.reach?` Ant: ${fn(prev.reach)}.`:''}`,
         nums:[`CPM: ${fmoney(curr.cpm,moneda)}`,`Alcance: ${fn(curr.reach)}`,`Impr: ${fn(curr.impressions)}`]
       });
     }
   } else if(obj==='trafico'){
     if(curr.ctr>0){
       const ctrStatus = curr.ctr>=1?'positive':curr.ctr>=0.5?'warning':'critical';
-      diags.push({type:ctrStatus, title:`CTR: ${curr.ctr.toFixed(2)}%`,
-        detail:`${curr.ctr>=1?'CTR saludable':curr.ctr>=0.5?'CTR aceptable, mejorable':'CTR bajo — revisar creativos y audiencia'}. CPC: ${fmoney(curr.cpc,moneda)}`,
+      const ctrDelta = prev?.ctr>0 ? delta(curr.ctr, prev.ctr) : '';
+      diags.push({type:ctrStatus,
+        title:`CTR: ${curr.ctr.toFixed(2)}%${ctrDelta}${prev?` (ant: ${prev.ctr?.toFixed(2)||'—'}%)`:''}`,
+        detail:`${curr.ctr>=1?'CTR saludable':curr.ctr>=0.5?'CTR aceptable':'CTR bajo — revisar creativos'}. CPC: ${fmoney(curr.cpc,moneda)}`,
         nums:[`CTR: ${curr.ctr.toFixed(2)}%`,`CPC: ${fmoney(curr.cpc,moneda)}`,`Clics: ${fn(curr.clicks)}`]
       });
     }
   } else {
-    // Leads / Interaccion / otros — solo mostrar el resultado troncal
     if(curr.result>0&&curr.cpr>0){
-      diags.push({type:'positive', title:`${curr.rl}: ${fn(curr.result)} · CPR: ${fmoney(curr.cpr,moneda)}`,
-        detail:`Resultado troncal del período. Comparar vs períodos anteriores para evaluar evolución.`,
+      const resDelta = prev?.result>0 ? delta(curr.result, prev.result) : '';
+      const cprDelta = prev?.cpr>0 ? delta(curr.cpr, prev.cpr, true) : '';
+      diags.push({type:'positive',
+        title:`${curr.rl}: ${fn(curr.result)}${resDelta} · CPR: ${fmoney(curr.cpr,moneda)}${cprDelta}`,
+        detail:`${prev?`Ant: ${fn(prev.result)} resultados · CPR: ${fmoney(prev.cpr,moneda)}`:'Sin dato anterior'}`,
         nums:[`${curr.rl}: ${fn(curr.result)}`,`CPR: ${fmoney(curr.cpr,moneda)}`,`Inversión: ${fmoney(curr.spend,moneda)}`]
       });
     }
@@ -1501,22 +1532,26 @@ async function runAudit(){
       const objEfectivo = acc.objetivo;
       const accEf = acc;
       // Traer datos globales de cuenta (para totales) y por campaña (para desglose por objetivo)
-      const [w1r,w2r,m1r,m2r,campW1,campM1]=await Promise.all([
+      const [w1r,w2r,m1r,m2r,campW1,campW2,campM1,campM2]=await Promise.all([
         fetchIns(acc.cuentaPub,ranges.w1.since,ranges.w1.until,cf),
         fetchIns(acc.cuentaPub,ranges.w2.since,ranges.w2.until,cf),
         fetchIns(acc.cuentaPub,ranges.m1.since,ranges.m1.until,cf),
         fetchIns(acc.cuentaPub,ranges.m2.since,ranges.m2.until,cf),
         fetchCampaigns(acc.cuentaPub,ranges.w1.since,ranges.w1.until,cf),
+        fetchCampaigns(acc.cuentaPub,ranges.w2.since,ranges.w2.until,cf),
         fetchCampaigns(acc.cuentaPub,ranges.m1.since,ranges.m1.until,cf),
+        fetchCampaigns(acc.cuentaPub,ranges.m2.since,ranges.m2.until,cf),
       ]);
       const w1=extract(w1r,objEfectivo),w2=extract(w2r,objEfectivo);
       const m1=extract(m1r,objEfectivo),m2=extract(m2r,objEfectivo);
       const wD=analyze(w1,w2,objEfectivo,false,acc.moneda),mD=analyze(m1,m2,objEfectivo,true,acc.moneda);
       // Desglose por objetivo de Meta — agrupa campañas activas
       const byObjW1=groupByObjective(campW1);
+      const byObjW2=groupByObjective(campW2);
       const byObjM1=groupByObjective(campM1);
-      // Construir bloques de KPI por objetivo
-      const objBlocks=buildObjBlocks(byObjW1,byObjM1,accEf);
+      const byObjM2=groupByObjective(campM2);
+      // Construir bloques de KPI por objetivo con comparación
+      const objBlocks=buildObjBlocks(byObjW1,byObjW2,byObjM1,byObjM2,accEf);
       results.push({acc:accEf,w1,w2,m1,m2,wD,mD,objBlocks,error:null});
     }catch(e){results.push({acc,error:e.message});}
   }
@@ -1564,7 +1599,7 @@ function renderCard(r,idx,ranges){
   const allD=[...(wD?.diags||[]),...(mD?.diags||[])];
   const crits=allD.filter(d=>d.type==='critical').length;
   const warns=allD.filter(d=>d.type==='warning').length;
-  const risk=isBrand?'unknown':wD?.risk||'unknown';
+  const risk=wD?.risk||'unknown';
   const rl={critical:'⚠ Crítico',warning:'⚡ Atención',ok:'✓ Saludable',unknown:'—'};
   const rc={critical:'rc',warning:'rw',ok:'ro',unknown:'tu'};
   const objLabel={ventas:'VENTAS',leads:'LEADS',branding:'BRANDING',ventas_leads:'VENTAS/LEADS',conversaciones:'CONV.',registros:'REGISTROS'};
@@ -1578,7 +1613,7 @@ function renderCard(r,idx,ranges){
         <span class="tag ${objTag[acc.objetivo]||'tu'}">${objLabel[acc.objetivo]||acc.objetivo}</span>
         ${crits>0?`<span class="tag rc">${crits} crítico${crits>1?'s':''}</span>`:''}
         ${warns>0?`<span class="tag rw">${warns} alerta${warns>1?'s':''}</span>`:''}
-        <span class="tag ${rc[risk]||'tu'}">${isBrand?'📊 Branding':rl[risk]||'—'}</span>
+        <span class="tag ${rc[risk]||'tu'}">${rl[risk]||'—'}</span>
       </div>
       <div class="cr">
         ${m1?`<span style="font-size:12px;color:var(--muted)">Mes: <strong style="color:var(--navy);font-family:var(--font-display)">${fmoney(m1.spend, acc.moneda)}</strong></span>`:''}
@@ -1592,16 +1627,33 @@ function renderCard(r,idx,ranges){
 }
 
 function renderBrandBody(r,ranges){
-  const{acc,w1,w2,m1,m2}=r;
+  const{acc,w1,w2,m1,m2,wD,mD}=r;
+  const budBlock=acc.pres_ars>0&&m1?renderBudget(m1.spend,acc.pres_ars,m1,acc.objetivo,acc.moneda||'ARS'):'';
   return`<div class="mg4">
     ${mc('Alcance (Mes)',m1?.reach,m2?.reach,'',false)}
     ${mc('CPM (Mes)',m1?.cpm,m2?.cpm,'CUR',true,'',acc.moneda)}
     ${mc('Frecuencia (Mes)',m1?.freq,m2?.freq,'',true)}
     ${mc('Inversión (Mes)',m1?.spend,m2?.spend,'CUR',false,'',acc.moneda)}
   </div>
-  <div class="cwrap" style="padding-bottom:4px;">${compTable(r,ranges,acc.moneda)}</div>
+  ${budBlock?`<div style="padding:14px 24px 0;">${budBlock}</div>`:''}
+  <div class="cwrap">
+    <div class="sdivider" style="margin-bottom:12px;">Comparación de Períodos</div>
+    ${compTable(r,ranges,acc.moneda)}
+  </div>
+  <div class="dwrap" style="padding-bottom:0;">
+    <div class="sdivider" style="margin-bottom:16px;">KPIs por Objetivo · Campañas Activas</div>
+    ${r.objBlocks&&r.objBlocks.length>0?renderObjBlocks(r.objBlocks,acc):'<div style="padding:16px;color:var(--muted);font-size:13px;">Sin campañas activas en el período analizado.</div>'}
+  </div>
   <div class="dwrap">
-    <div style="margin-top:8px;">
+    <div style="margin-bottom:24px;">
+      <div class="dst">Diagnóstico Semanal · ${ranges.w1.label} vs ${ranges.w2.label}</div>
+      ${renderDiag(wD)}
+    </div>
+    <div>
+      <div class="dst">Diagnóstico Mensual · Mes actual vs mismo período mes anterior</div>
+      ${renderDiag(mD)}
+    </div>
+    <div style="margin-top:24px;">
       <div class="dst">Cerebro Estratégico · Conclusiones & Próximos Pasos</div>
       <div id="ai_${safeId(acc.cuentaPub)}" class="ai-conclusion-box">
         <div class="ai-loading">
@@ -1626,10 +1678,10 @@ function renderPerfBody(r,ranges,budBlock){
     <div class="sdivider" style="margin-bottom:12px;">Comparación de Períodos</div>
     ${compTable(r,ranges,acc.moneda)}
   </div>
-  ${r.objBlocks&&r.objBlocks.length>0?`<div class="dwrap" style="padding-bottom:0;">
+  <div class="dwrap" style="padding-bottom:0;">
     <div class="sdivider" style="margin-bottom:16px;">KPIs por Objetivo · Campañas Activas</div>
-    ${renderObjBlocks(r.objBlocks,acc)}
-  </div>`:''}
+    ${r.objBlocks&&r.objBlocks.length>0?renderObjBlocks(r.objBlocks,acc):'<div style="padding:16px;color:var(--muted);font-size:13px;">Sin campañas activas en el período analizado.</div>'}
+  </div>
   <div class="dwrap">
     <div style="margin-bottom:24px;">
       <div class="dst">Diagnóstico Semanal · ${ranges.w1.label} vs ${ranges.w2.label}</div>
@@ -1825,7 +1877,7 @@ function renderAIConclusion(el, ai){
 function renderObjBlocks(blocks, acc){
   if(!blocks||!blocks.length) return '';
   return blocks.map(b=>{
-    const {obj, meta, w1, m1, diag, badConfig, campaignCount} = b;
+    const {obj, meta, w1, w2, m1, m2, badConfig, campaignCount} = b;
     const moneda = acc.moneda||'ARS';
 
     // KPI principal según objetivo
@@ -1890,12 +1942,23 @@ function renderObjBlocks(blocks, acc){
         <span style="font-size:13px;font-weight:600;">${badConfig.msg}</span>
       </div>` : '';
 
-    // Diagnósticos del bloque
-    const diagHtml = diag&&diag.diags.length ? diag.diags.map(d=>`
+    // Diagnósticos del bloque — mensual primero, luego semanal
+    const diagHtmlFor = (d) => `
       <div class="obj-diag obj-diag-${d.type}">
         <span style="font-weight:600;font-size:12px;">${d.title}</span>
         <span style="font-size:11px;color:var(--muted);margin-left:8px;">${d.detail}</span>
-      </div>`).join('') : '';
+      </div>`;
+    const diagM = b.diagM||b.diag;
+    const diagW = b.diagW;
+    const diagHtml = [
+      ...(diagM?.diags||[]).map(diagHtmlFor),
+      ...(diagW?.diags||[]).filter(d=>!diagM?.diags?.find(m=>m.title===d.title)).map(d=>`
+        <div class="obj-diag obj-diag-${d.type}" style="opacity:0.8;">
+          <span style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;">7D · </span>
+          <span style="font-weight:600;font-size:12px;">${d.title}</span>
+          <span style="font-size:11px;color:var(--muted);margin-left:8px;">${d.detail}</span>
+        </div>`)
+    ].join('');
 
     return `<div class="obj-block">
       <div class="obj-block-header">
@@ -2003,7 +2066,8 @@ async function fetchHistorial(acc){
     if(cached){
       const parsed = JSON.parse(cached);
       const age = (Date.now() - parsed.ts) / 1000 / 3600;
-      if(age < 24 && parsed.data && parsed.data.length) return parsed.data;
+      const hasRealData = parsed.data && parsed.data.some(h=>h.data&&h.data.spend>0);
+      if(age < 24 && hasRealData) return parsed.data;
     }
   }catch(e){}
 
@@ -2051,11 +2115,11 @@ async function generateAIConclusion(r){
   // Small delay for UX
   await new Promise(res=>setTimeout(res,400));
 
-  const resultado = cerebro(acc, w1, w2, m1, m2, wD, mD, historial, perfil);
+  const resultado = cerebro(acc, w1, w2, m1, m2, wD, mD, historial, perfil, r.objBlocks||[]);
   renderCerebro(el, resultado, acc, historial);
 }
 
-function cerebro(acc, w1, w2, m1, m2, wD, mD, historial, perfil){
+function cerebro(acc, w1, w2, m1, m2, wD, mD, historial, perfil, objBlocks=[]){
   const obj = acc.objetivo;
   const moneda = acc.moneda || 'ARS';
   const useObj = obj==='ventas_leads'?'ventas':obj;
@@ -2063,7 +2127,7 @@ function cerebro(acc, w1, w2, m1, m2, wD, mD, historial, perfil){
   const crits = allDiags.filter(d=>d.type==='critical');
   const warns = allDiags.filter(d=>d.type==='warning');
   const positives = allDiags.filter(d=>d.type==='positive');
-  const risk = acc.objetivo==='branding'?'unknown':(wD?.risk||mD?.risk||'unknown');
+  const risk = wD?.risk||mD?.risk||'unknown';
 
   // ── DIAGNÓSTICO EJECUTIVO ──
   let diagnostico = '';
@@ -2080,7 +2144,7 @@ function cerebro(acc, w1, w2, m1, m2, wD, mD, historial, perfil){
       critical: `La cuenta de ${acc.cliente} está en zona crítica y necesita intervención esta semana.`,
       warning: `La cuenta de ${acc.cliente} muestra señales de alerta que conviene atender antes de que impacten en el costo por resultado.`,
       ok: `La cuenta de ${acc.cliente} opera de forma saludable en los períodos analizados — las métricas están dentro de rangos normales.`,
-      unknown: `La cuenta de ${acc.cliente} es de tipo branding — el análisis está enfocado en eficiencia de alcance y frecuencia.`
+      unknown: `La cuenta de ${acc.cliente} es de tipo branding. ${objBlocks.length>0?'Objetivos activos: '+objBlocks.map(b=>b.meta?.label||b.obj).join(', ')+'.':''} El análisis evalúa eficiencia de alcance, frecuencia y rendimiento por tipo de campaña.`
     };
     diagnostico = estadoTexto[risk] || estadoTexto.unknown;
 
