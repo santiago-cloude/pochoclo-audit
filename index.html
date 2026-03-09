@@ -1192,8 +1192,15 @@ function extract(raw,obj){
     else{result=0;rl='Leads';}
     cpr=result>0?spend/result:0;
   }
-  else if(useObj==='conversaciones'){result=msgs>0?msgs:leads;rl='Conversaciones';cpr=result>0?spend/result:0;}
+  else if(useObj==='conversaciones'||useObj==='interaccion'){
+    if(msgs>0){result=msgs;rl='Conversaciones';}
+    else if(leads>0){result=leads;rl='Mensajes/Leads';}
+    else{result=0;rl='Conversaciones';}
+    cpr=result>0?spend/result:0;
+  }
   else if(useObj==='registros'){result=regs;rl='Registros';cpr=regs>0?spend/regs:0;}
+  else if(useObj==='trafico'){result=lpv>0?lpv:clicks;rl=lpv>0?'LPV':'Clics';cpr=result>0?spend/result:0;}
+  else if(useObj==='reconocimiento'){result=0;rl='Alcance';}
   else{rl='—';}
   const extraLeads=obj==='ventas_leads'?leads:0;
   const invFact=(useObj==='ventas'&&rv>0&&spend>0)?(spend/rv)*100:null;
@@ -1773,93 +1780,7 @@ function fmoney(n,moneda){
   const _n=typeof n==='number'?n:parseFloat(n);
   return sym(moneda)+Math.round(_n).toLocaleString('es-AR');
 }
-async function generateAIConclusion(r){
-  const{acc,w1,w2,m1,m2,wD,mD}=r;
-  const elId='ai_'+safeId(acc.cuentaPub);
-  const el=document.getElementById(elId);
-  if(!el)return;
-
-  // Build context for Claude
-  const now=new Date();
-  const dayOfMonth=now.getDate();
-  const daysInMonth=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
-  const paceInfo=m1&&acc.pres_ars>0?`Inversión mes acumulada: $${m1.spend?.toFixed(0)||0} ${acc.moneda}. Presupuesto: ${acc.moneda} ${acc.pres_ars}. Día ${dayOfMonth}/${daysInMonth}.`:'Sin presupuesto definido.';
-  
-  const metrics={
-    objetivo: acc.objetivo,
-    moneda: acc.moneda||'ARS',
-    // Weekly
-    spend_7d: w1?.spend?.toFixed(2)||0, spend_7d_prev: w2?.spend?.toFixed(2)||0,
-    results_7d: w1?.result||0, results_7d_prev: w2?.result||0,
-    cpr_7d: w1?.cpr?.toFixed(2)||0, cpr_7d_prev: w2?.cpr?.toFixed(2)||0,
-    ctr_7d: w1?.ctr?.toFixed(2)||0, cpm_7d: w1?.cpm?.toFixed(2)||0,
-    freq_7d: w1?.freq?.toFixed(2)||0,
-    // Monthly
-    spend_mes: m1?.spend?.toFixed(2)||0, spend_mes_prev: m2?.spend?.toFixed(2)||0,
-    results_mes: m1?.result||0, results_mes_prev: m2?.result||0,
-    cpr_mes: m1?.cpr?.toFixed(2)||0, cpr_mes_prev: m2?.cpr?.toFixed(2)||0,
-    roas: m1?.roas?.toFixed(2)||null, inv_fact_ratio: m1?.invFact?.toFixed(1)||null,
-    result_label: m1?.rl||w1?.rl||'Resultados',
-  };
-  
-  const allDiags=[...(wD?.diags||[]),...(mD?.diags||[])];
-  const diagSummary=allDiags.map(d=>'['+d.type.toUpperCase()+'] '+d.title+': '+d.detail).join(' | ');
-
-  const prompt = [
-    'Sos un estratega senior de Paid Media analizando la cuenta de Meta Ads de "' + acc.cliente + '".',
-    '',
-    'DATOS:',
-    '- Objetivo: ' + acc.objetivo + ' (' + metrics.result_label + ')',
-    '- Moneda: ' + acc.moneda,
-    '- ' + paceInfo,
-    '',
-    'SEMANA (7D vs 7D ant):',
-    '- Inversion: $' + metrics.spend_7d + ' vs $' + metrics.spend_7d_prev,
-    '- ' + metrics.result_label + ': ' + metrics.results_7d + ' vs ' + metrics.results_7d_prev,
-    '- Costo x resultado: $' + metrics.cpr_7d + ' vs $' + metrics.cpr_7d_prev,
-    '- CTR: ' + metrics.ctr_7d + '% | CPM: $' + metrics.cpm_7d + ' | Frecuencia: ' + metrics.freq_7d,
-    '',
-    'MES ACTUAL vs mismo periodo mes anterior:',
-    '- Inversion: $' + metrics.spend_mes + ' vs $' + metrics.spend_mes_prev,
-    '- ' + metrics.result_label + ': ' + metrics.results_mes + ' vs ' + metrics.results_mes_prev,
-    '- Costo x resultado: $' + metrics.cpr_mes + ' vs $' + metrics.cpr_mes_prev,
-    metrics.roas ? '- ROAS: ' + metrics.roas + 'x | Ratio inv/fact: ' + metrics.inv_fact_ratio + '%' : '',
-    '',
-    'DIAGNOSTICOS: ' + (diagSummary || 'Sin anomalias detectadas.'),
-    '',
-    'Responde SOLO con JSON valido (sin markdown ni backticks):',
-    '{"diagnostico":"1 parrafo ejecutivo honesto del estado de la cuenta","proximos_pasos":["accion 1","accion 2","accion 3"],"alerta_presupuesto":"alerta sobre ritmo de gasto o null","oportunidad":"oportunidad para escalar o null"}'
-  ].join('\n');
-
-  try{
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': localStorage.getItem('pm_token') || '',
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1500,
-        messages: [{role:'user', content: prompt}]
-      })
-    });
-    const data = await response.json();
-    if(data.error) throw new Error(data.error.message || 'API error');
-    const text = data.content?.[0]?.text || '';
-    // Extract JSON - find first { to last }
-    const jsonStart = text.indexOf('{');
-    const jsonEnd = text.lastIndexOf('}');
-    if(jsonStart === -1 || jsonEnd === -1) throw new Error('No JSON in response');
-    const jsonStr = text.slice(jsonStart, jsonEnd+1);
-    const parsed = JSON.parse(jsonStr);
-    renderAIConclusion(el, parsed);
-  } catch(e){
-    el.innerHTML=`<div class="ai-error">No se pudo generar el análisis estratégico (${e.message})</div>`;
-  }
-}
+// generateAIConclusion — ver implementación completa abajo (Cerebro Estratégico JS)
 
 function renderAIConclusion(el, ai){
   let html='';
@@ -2128,6 +2049,7 @@ function cerebro(acc, w1, w2, m1, m2, wD, mD, historial, perfil){
   const crits = allDiags.filter(d=>d.type==='critical');
   const warns = allDiags.filter(d=>d.type==='warning');
   const positives = allDiags.filter(d=>d.type==='positive');
+  const risk = acc.objetivo==='branding'?'unknown':(wD?.risk||mD?.risk||'unknown');
 
   // ── DIAGNÓSTICO EJECUTIVO ──
   let diagnostico = '';
