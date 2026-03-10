@@ -462,15 +462,16 @@
   }
   .hist-chart {
     display:flex; align-items:flex-end; gap:3px;
-    height:40px; padding:8px 0;
+    height:56px; padding:4px 0 0;
   }
   .hist-bar {
     flex:1; border-radius:3px 3px 0 0;
     background:var(--orange-light); border:1px solid var(--orange-mid);
     position:relative; min-width:20px; cursor:pointer; transition:background .15s;
+    height:100%;
   }
   .hist-bar:hover { background:var(--orange-mid); }
-  .hist-bar-fill { position:absolute; bottom:0; left:0; right:0; background:var(--orange); border-radius:2px 2px 0 0; }
+  .hist-bar-fill { position:absolute; bottom:0; left:0; right:0; background:var(--orange); border-radius:2px 2px 0 0; min-height:2px; }
   .hist-wrap { padding:0 24px 0; }
 
   /* CURRENCY NOTICE */
@@ -546,10 +547,13 @@
   }
   .obj-kpi {
     background: var(--white); border: 1px solid var(--border);
-    border-radius: 8px; padding: 8px 12px; min-width: 90px;
+    border-radius: 8px; padding: 8px 12px; min-width: 100px; flex: 1;
   }
   .obj-kpi-7d {
     background: var(--navy-light); border-color: var(--navy-mid);
+  }
+  .obj-kpi-m2 {
+    background: #f5f0ff; border-color: #d8ccf5;
   }
   .obj-kpi-label {
     font-size: 10px; color: var(--muted); font-weight: 600;
@@ -572,6 +576,22 @@
   .obj-diag-warning { background: var(--yellow-bg); color: var(--yellow); border-left: 3px solid var(--yellow); }
   .obj-diag-positive { background: var(--green-bg); color: var(--green); border-left: 3px solid var(--green); }
   .obj-diag-info { background: var(--navy-light); color: var(--navy); border-left: 3px solid var(--navy-mid); }
+  .obj-vsm2 {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 14px; margin: 10px 0 6px;
+  }
+  .obj-vsm2-title {
+    font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 8px;
+  }
+  .obj-vsm2-row {
+    display: flex; align-items: center; gap: 8px; padding: 4px 0;
+    border-bottom: 1px solid var(--border); font-size: 12px;
+  }
+  .obj-vsm2-row:last-child { border-bottom: none; }
+  .obj-vsm2-label { flex: 1; color: var(--muted); }
+  .obj-vsm2-curr { font-weight: 700; color: var(--navy); min-width: 120px; }
+  .obj-vsm2-prev { font-size: 11px; color: var(--muted2); min-width: 100px; text-align: right; }
 
   /* FOOTER */
   .footer {
@@ -620,6 +640,25 @@
   </div>
 </div>
 
+<div id="debugOptGoal" style="display:none;position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:2px solid #1a3a5c;padding:12px 16px;max-height:280px;overflow-y:auto;z-index:9999;font-family:monospace;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+    <b style="font-size:12px;color:#1a3a5c;">🔍 DEBUG · optimization_goal · results · cost_per_result</b>
+    <div style="display:flex;gap:8px;">
+      <button onclick="testRawFetch()" style="font-size:11px;padding:2px 10px;cursor:pointer;background:#1a3a5c;color:#fff;border:none;border-radius:4px;">📡 Ver JSON crudo</button>
+      <button onclick="this.closest('#debugOptGoal').style.display='none';" style="font-size:11px;padding:2px 8px;cursor:pointer;">✕</button>
+    </div>
+  </div>
+  <div id="debugRaw"></div>
+</div>
+<div id="jsonModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:10000;overflow:auto;padding:20px;">
+  <div style="background:#fff;max-width:960px;margin:0 auto;border-radius:8px;padding:20px;">
+    <div style="display:flex;justify-content:space-between;margin-bottom:12px;">
+      <b style="font-size:14px;color:#1a3a5c;">JSON crudo API · Insights nivel adset</b>
+      <button onclick="document.getElementById('jsonModal').style.display='none'" style="cursor:pointer;font-size:14px;padding:4px 12px;background:#dc2626;color:#fff;border:none;border-radius:4px;">✕ Cerrar</button>
+    </div>
+    <pre id="jsonContent" style="font-size:11px;overflow:auto;max-height:75vh;background:#f5f5f5;padding:12px;border-radius:4px;white-space:pre-wrap;word-break:break-all;"></pre>
+  </div>
+</div>
 <div class="loading-overlay" id="loadingOverlay">
   <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
     <div style="width:32px;height:32px;background:var(--orange);border-radius:8px;display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:800;font-size:11px;color:#fff;">PM</div>
@@ -720,7 +759,7 @@
           <th>Cliente</th>
           <th>Cuenta publicitaria</th>
           <th>Objetivo</th>
-          <th>Inversión Meta (USD)</th>
+          <th>Inversión Meta</th>
           <th>Presupuesto (ARS)</th>
         </tr>
       </thead>
@@ -1003,7 +1042,7 @@ function renderAccTable(){
       <td><label for="${safeId}" style="cursor:pointer;"><strong style="color:var(--navy)">${a.cliente}</strong></label></td>
       <td style="font-size:11px;color:var(--muted);font-family:'Inter',sans-serif">${a.cuentaPub}</td>
       <td><span class="tag ${tc}">${objLabel[a.objetivo]||a.objetivo}</span></td>
-      <td style="font-family:'Inter',sans-serif">${fn(a.inv_usd)}</td>
+      <td style="font-family:'Inter',sans-serif">${a.inv_usd>0?(a.moneda||'ARS')+' '+fn(a.inv_usd):'—'}</td>
       <td style="font-family:'Inter',sans-serif">${a.pres_ars>0?(a.moneda||'ARS')+' '+fn(a.pres_ars):'—'}</td>
     </tr>`;
   }).join('');
@@ -1011,6 +1050,27 @@ function renderAccTable(){
 }
 
 function safeId(s){ return s.replace(/[^a-z0-9]/gi,'_'); }
+
+async function testRawFetch(){
+  const debugRaw=document.getElementById('debugRaw');
+  if(!cfg.metaToken){debugRaw.innerHTML='<span style="color:red">Sin token configurado</span>';return;}
+  debugRaw.innerHTML='<span style="color:#888">Fetching...</span>';
+  const id='act_584167988769846';
+  const fields=['campaign_name','adset_name','objective','optimization_goal','spend','results','cost_per_result','video_thruplay_watched_actions','actions'].join(',');
+  const url=`https://graph.facebook.com/${cfg.metaVersion}/${id}/insights?fields=${fields}&time_range={"since":"2026-03-01","until":"2026-03-09"}&level=adset&access_token=${cfg.metaToken}`;
+  try{
+    const res=await fetch(url);
+    const json=await res.json();
+    const rows=(json.data||[json]).map(d=>`
+      <div style="border-bottom:1px solid #eee;padding:6px 0;font-size:10px;">
+        <b>${d.campaign_name||''}</b> | og:<b style="color:#1a3a5c">${d.optimization_goal||'VACÍO'}</b> | 
+        results:<b style="color:#16a34a">${JSON.stringify(d.results||'—')}</b> | 
+        cpr:<b>${JSON.stringify(d.cost_per_result||'—')}</b> |
+        thruplay:<b>${JSON.stringify(d.video_thruplay_watched_actions||'—')}</b>
+      </div>`).join('');
+    debugRaw.innerHTML=rows||JSON.stringify(json,null,2).slice(0,500);
+  }catch(e){debugRaw.innerHTML='<span style="color:red">Error: '+e.message+'</span>';}
+}
 function toggleSelectAll(cb){
   document.querySelectorAll('.acc-cb').forEach(c=>c.checked=cb.checked);
   updateSelectedCount();
@@ -1064,62 +1124,372 @@ async function fetchIns(accountId,since,until,campaignFilter=null){
   }
 }
 
-// Trae datos a nivel campaña con objective y optimization_goal para desglose por objetivo
-async function fetchCampaigns(accountId,since,until,campaignFilter=null){
+// Trae métricas nivel adset + optimization_goal real (fetch separado a /adsets)
+async function fetchCampaigns(accountId, since, until, campaignFilter=null){
   let id = accountId;
   if(id.startsWith('act=')) id = 'act_' + id.slice(4);
   else if(!id.startsWith('act_')) id = 'act_' + id;
-  const fields=['campaign_id','campaign_name','objective','spend','impressions','clicks','reach','ctr','cpm','cpc','frequency','actions','action_values'].join(',');
+
+  // FETCH 1: Insights a nivel adset
+  // Según doc oficial Meta v25.0: optimization_goal viene directo en insights
+  // results y cost_per_result son los campos canónicos de Ads Manager
+  const insightFields=[
+    'campaign_id','campaign_name','objective','optimization_goal',
+    'adset_id','adset_name',
+    'spend','impressions','clicks','reach','ctr','cpm','cpc','frequency',
+    'actions','action_values','outbound_clicks',
+    'results','cost_per_result',
+    'video_thruplay_watched_actions','video_p100_watched_actions'
+  ].join(',');
   let filterArr=[];
   if(campaignFilter) filterArr.push({"field":"campaign.name","operator":"CONTAIN","value":campaignFilter});
   const filterStr=filterArr.length?'&filtering='+encodeURIComponent(JSON.stringify(filterArr)):'';
-  const url=`https://graph.facebook.com/${cfg.metaVersion}/${id}/insights?fields=${fields}&time_range={"since":"${since}","until":"${until}"}&level=campaign${filterStr}&access_token=${cfg.metaToken}`;
+  const insightUrl=`https://graph.facebook.com/${cfg.metaVersion}/${id}/insights?fields=${insightFields}&time_range={"since":"${since}","until":"${until}"}&level=adset${filterStr}&access_token=${cfg.metaToken}`;
+  const insightRes=await fetch(insightUrl);const insightJson=await insightRes.json();
+  if(insightJson.error)throw new Error(insightJson.error.message);
+  const data=insightJson.data||[];
+  if(!data.length) return [];
+
+  // Normalizar optimization_goal — viene directo de la API, no hace falta fetch de adsets
+  for(const d of data){
+    d.optimization_goal = normalizeOg(d.optimization_goal||'');
+  }
+
+  // Guardar JSON crudo para diagnóstico — botón en el auditor lo muestra
+  window._lastApiJson = data;
+
+  // Debug panel
+  const debugEl=document.getElementById('debugOptGoal');
+  if(debugEl){
+    const rows=data.map(d=>`<tr>
+      <td style="padding:2px 8px;font-size:11px;">${(d.campaign_name||'').slice(0,35)}</td>
+      <td style="padding:2px 8px;font-size:11px;font-weight:700;color:${d.optimization_goal?'#1a3a5c':'#dc2626'};">${d.optimization_goal||'⚠️ VACÍO'}</td>
+      <td style="padding:2px 8px;font-size:11px;color:#888;">${d.objective||''}</td>
+      <td style="padding:2px 8px;font-size:11px;color:#16a34a;">${d.results?.[0]?.value||'—'} | CPR:$${d.cost_per_result?.[0]?.value||'—'}</td>
+      <td style="padding:2px 8px;font-size:11px;color:#7c3aed;">${(d.actions||[]).map(a=>a.action_type+':'+a.value).slice(0,3).join(' | ')}</td>
+    </tr>`).join('');
+    debugEl.innerHTML=`<div style="margin-bottom:6px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <b style="font-size:11px;color:#1a3a5c;">🔍 API Response · ${since}→${until}</b>
+        <button onclick="document.getElementById('jsonContent').textContent=JSON.stringify(window._lastApiJson,null,2);document.getElementById('jsonModal').style.display='block';" 
+          style="font-size:11px;padding:3px 10px;background:#1a3a5c;color:#fff;border:none;border-radius:4px;cursor:pointer;">Ver JSON completo</button>
+      </div>
+      <table style="border-collapse:collapse;width:100%;">
+        <tr style="font-size:10px;color:#888;"><th style="text-align:left;padding:2px 8px;">Campaña</th><th>OG</th><th>Objective</th><th>Results|CPR</th><th>Actions (3 primeras)</th></tr>
+        ${rows}
+      </table></div>`;
+    debugEl.style.display='block';
+  }
+  return data;
+}
+
+// Fetch datos diarios del mes para mini gráfico evolutivo
+async function fetchDaily(accountId, since, until, campaignFilter=null){
+  let id = accountId;
+  if(id.startsWith('act=')) id = 'act_' + id.slice(4);
+  else if(!id.startsWith('act_')) id = 'act_' + id;
+  const fields=['spend','impressions','clicks','reach','actions','outbound_clicks'].join(',');
+  let filterArr=[];
+  if(campaignFilter) filterArr.push({"field":"campaign.name","operator":"CONTAIN","value":campaignFilter});
+  const filterStr=filterArr.length?'&filtering='+encodeURIComponent(JSON.stringify(filterArr)):'';
+  const url=`https://graph.facebook.com/${cfg.metaVersion}/${id}/insights?fields=${fields}&time_range={"since":"${since}","until":"${until}"}&time_increment=1&level=account${filterStr}&access_token=${cfg.metaToken}`;
   const res=await fetch(url);const json=await res.json();
   if(json.error)throw new Error(json.error.message);
   return json.data||[];
 }
 
-// Agrupa campañas por objetivo Meta y devuelve mapa { objetivo: rawAggregado }
-function groupByObjective(campaigns){
-  const groups={};
-  for(const c of campaigns){
-    const obj=normalizeMetaObjective(c.objective||'UNKNOWN');
-    if(!groups[obj]) groups[obj]=[];
-    groups[obj].push(c);
+// Extrae el KPI diario relevante según el objetivo
+function extractDailyKpi(dayData, obj, og){
+  const fA=(arr,types)=>{for(const t of types){const f=(arr||[]).find(a=>a.action_type===t);if(f)return parseFloat(f.value||0);}return 0;};
+  const acts = dayData.actions||[];
+  const ogUp = (og||'').toUpperCase();
+  if(obj==='ventas'||obj==='ventas_leads'||ogUp==='OFFSITE_CONVERSIONS')
+    return fA(acts,['purchase','offsite_conversion.fb_pixel_purchase']);
+  if(ogUp==='CONVERSATIONS'||obj==='mensajes')
+    return fA(acts,['onsite_conversion.messaging_conversation_started_7d','onsite_conversion.total_messaging_connection','onsite_conversion.messaging_first_reply']);
+  if(ogUp==='LEAD_GENERATION'||obj==='leads')
+    return fA(acts,['lead','offsite_conversion.fb_pixel_lead','onsite_conversion.lead_grouped']);
+  if(ogUp==='THRUPLAY'||obj==='video')
+    return fA(acts,['video_thruplay_watched_actions']);
+  if(ogUp==='LANDING_PAGE_VIEWS')
+    return fA(acts,['landing_page_view']);
+  if(ogUp==='PROFILE_VISIT')
+    return fA(acts,['onsite_conversion.profile_visit','instagram_profile_visit'])||parseInt(dayData.reach||0);
+  if(ogUp==='LINK_CLICKS'||obj==='trafico'){
+    const lc = fA(acts,['link_click','outbound_click']);
+    const ob = parseInt((dayData.outbound_clicks||[]).find(o=>o.action_type==='outbound_click')?.value||0);
+    return lc>0?lc:ob>0?ob:parseInt(dayData.clicks||0);
   }
-  const result={};
-  for(const [obj,list] of Object.entries(groups)){
-    result[obj]=aggregateCampaigns(list);
-    result[obj]._campaignCount=list.length;
-    result[obj]._campaignNames=list.map(c=>c.campaign_name||'');
-    result[obj]._rawObjective=list[0].objective||'';
-  }
-  return result;
+  if(ogUp==='REACH'||obj==='reconocimiento')
+    return parseInt(dayData.reach||0);
+  return parseFloat(dayData.spend||0);
 }
 
-// Mapea objetivos Meta API → nuestro sistema
-function normalizeMetaObjective(metaObj){
+// Renderiza mini sparkline SVG con los datos diarios — doble línea: KPI + CPR
+function renderSparkline(dailyData, obj, og, moneda){
+  if(!dailyData||!dailyData.length) return '';
+  const kpiVals = dailyData.map(d=>extractDailyKpi(d,obj,og));
+  const spendVals = dailyData.map(d=>parseFloat(d.spend||0));
+  const cprVals = kpiVals.map((v,i)=>v>0&&spendVals[i]>0?spendVals[i]/v:null);
+
+  const kpiLabel = og==='CONVERSATIONS'||obj==='mensajes'?'Conv/día':
+    og==='THRUPLAY'||og==='TWO_SECOND_CONTINUOUS_VIDEO_VIEWS'||obj==='video'?'ThruPlays/día':
+    obj==='leads'?'Leads/día':
+    og==='LINK_CLICKS'||obj==='trafico'?'Clics/día':
+    og==='PROFILE_VISIT'?'Visitas perfil/día':
+    og==='LANDING_PAGE_VIEWS'?'LPV/día':
+    og==='REACH'||obj==='reconocimiento'?'Alcance/día':'Resultado/día';
+
+  // Label del KPI secundario según optimization_goal
+  const cprLabel = og==='LINK_CLICKS'||obj==='trafico'?'CPC':
+    (og==='REACH'||og==='BRAND_AWARENESS'||og==='DAILY_UNIQUE_REACH'||obj==='reconocimiento')?'CPM':
+    og==='THRUPLAY'||og==='TWO_SECOND_CONTINUOUS_VIDEO_VIEWS'?'Costo x ThruPlay':
+    og==='LANDING_PAGE_VIEWS'?'Costo x Visita':
+    og==='PROFILE_VISIT'?'Costo x Visita al perfil':
+    og==='LEAD_GENERATION'||og==='QUALITY_LEAD'?'Costo x Lead':
+    og==='CONVERSATIONS'||og==='REPLIES'?'Costo x Conversación':
+    og==='OFFSITE_CONVERSIONS'||og==='VALUE'?'Costo x Compra':
+    'Costo x Resultado';
+
+  const W=300,H=60,padL=38,padR=8,padT=8,padB=18;
+  const innerW=W-padL-padR, innerH=H-padT-padB;
+
+  const mkLine=(vals,color,dashed=false)=>{
+    const nonNull=vals.filter(v=>v!==null&&v>0);
+    if(!nonNull.length) return '';
+    const max=Math.max(...nonNull,1);
+    const min=Math.min(...nonNull,0);
+    const range=max-min||1;
+    const pts=vals.map((v,i)=>{
+      if(v===null) return null;
+      const x=padL+(i/(vals.length-1||1))*innerW;
+      const y=padT+innerH-((v-min)/range)*innerH;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).filter(Boolean).join(' ');
+    const dashAttr=dashed?'stroke-dasharray="4,3"':'';
+    return `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" ${dashAttr}/>`;
+  };
+
+  const mkArea=(vals,color)=>{
+    const nonNull=vals.filter(v=>v!==null&&v>0);
+    if(!nonNull.length) return '';
+    const max=Math.max(...nonNull,1);
+    const min=Math.min(...nonNull,0);
+    const range=max-min||1;
+    const pts=vals.map((v,i)=>{
+      const x=padL+(i/(vals.length-1||1))*innerW;
+      const y=v!==null&&v>0?padT+innerH-((v-min)/range)*innerH:padT+innerH;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    });
+    const pathD=`M${pts.map((p,i)=>i===0?p:`L${p}`).join('')}L${(padL+innerW).toFixed(1)},${(padT+innerH).toFixed(1)}L${padL},${(padT+innerH).toFixed(1)}Z`;
+    return `<path d="${pathD}" fill="${color}" opacity="0.12"/>`;
+  };
+
+  // Eje Y izquierdo — valores del KPI
+  const kpiNonNull=kpiVals.filter(v=>v>0);
+  const kpiMax=Math.max(...kpiNonNull,1);
+  const kpiMin=Math.min(...kpiNonNull,0);
+  const yLabels=[kpiMin,kpiMin+(kpiMax-kpiMin)/2,kpiMax].map(v=>v>999?`${(v/1000).toFixed(1)}k`:Math.round(v).toString());
+
+  const lastKpi=kpiVals.filter(v=>v>0).slice(-1)[0]||0;
+  const lastCpr=cprVals.filter(v=>v!==null).slice(-1)[0]||0;
+  const gid=`sg_${obj}_${og}`.replace(/[^a-z0-9_]/gi,'_');
+
+  return `<div style="padding:12px 14px 10px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+      <span style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:600;">Evolutivo del mes</span>
+      <span style="display:flex;gap:10px;font-size:10px;">
+        <span style="color:var(--green);font-weight:700;">― ${kpiLabel}</span>
+        <span style="color:var(--navy);font-weight:700;opacity:.6;">- - ${cprLabel}</span>
+      </span>
+    </div>
+    <svg width="100%" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" style="display:block;height:${H}px;">
+      <defs>
+        <linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="var(--green)" stop-opacity="0.3"/>
+          <stop offset="100%" stop-color="var(--green)" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      <!-- Eje Y labels -->
+      <text x="${padL-4}" y="${padT+4}" font-size="8" fill="#94a3b8" text-anchor="end">${yLabels[2]}</text>
+      <text x="${padL-4}" y="${padT+innerH/2+3}" font-size="8" fill="#94a3b8" text-anchor="end">${yLabels[1]}</text>
+      <text x="${padL-4}" y="${padT+innerH+2}" font-size="8" fill="#94a3b8" text-anchor="end">${yLabels[0]}</text>
+      <!-- Líneas guía -->
+      <line x1="${padL}" y1="${padT}" x2="${padL+innerW}" y2="${padT}" stroke="#e2e8f0" stroke-width="0.5"/>
+      <line x1="${padL}" y1="${padT+innerH/2}" x2="${padL+innerW}" y2="${padT+innerH/2}" stroke="#e2e8f0" stroke-width="0.5"/>
+      <line x1="${padL}" y1="${padT+innerH}" x2="${padL+innerW}" y2="${padT+innerH}" stroke="#e2e8f0" stroke-width="0.5"/>
+      <!-- Area + línea KPI -->
+      ${mkArea(kpiVals,'var(--green)')}
+      ${mkLine(kpiVals,'var(--green)')}
+      <!-- Línea CPR punteada -->
+      ${mkLine(cprVals,'var(--navy)',true)}
+    </svg>
+    <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:2px;">
+      <span>Día 1</span>
+      <span style="color:var(--green);font-weight:700;">${fn(Math.round(lastKpi))} ${kpiLabel.replace('/día','')}</span>
+      <span style="color:var(--navy);font-weight:600;opacity:.7;">${cprLabel}: ${fmoney(lastCpr,moneda)}</span>
+      <span>Día ${kpiVals.length}</span>
+    </div>
+  </div>`;
+}
+
+// Mapea objetivos Meta API → nuestro sistema interno
+
+// ── MAPA DE ALIASES DE OPTIMIZATION_GOAL ──
+// Meta devuelve distintos nombres según versión de API, tipo de campaña y objetivo.
+// Todo alias normaliza a un nombre canónico interno único.
+const OG_ALIASES = {
+  // Visitas al perfil
+  'VISIT_INSTAGRAM_PROFILE':            'PROFILE_VISIT',
+  'INSTAGRAM_PROFILE_VISIT':            'PROFILE_VISIT',
+  'PROFILE_VISITS':                     'PROFILE_VISIT',
+
+  // Video
+  'VIDEO_VIEWS':                        'THRUPLAY',
+  'VIDEO_VIEW':                         'THRUPLAY',
+  'VIDEO_THRUPLAY':                     'THRUPLAY',
+
+  // Conversaciones / mensajes
+  'MESSAGING_CONVERSATION_STARTED_7D':  'CONVERSATIONS',
+  'MESSAGING_FIRST_REPLY':              'CONVERSATIONS',
+  'TOTAL_MESSAGING_CONNECTION':         'CONVERSATIONS',
+  'REPLY':                              'REPLIES',
+
+  // Leads
+  'QUALITY_LEAD':                       'LEAD_GENERATION',
+  'LEAD_GENERATION_MESSAGING':          'LEAD_GENERATION',
+  'ONSITE_LEAD':                        'LEAD_GENERATION',
+
+  // Compras / ventas
+  'OFFSITE_CONVERSION':                 'OFFSITE_CONVERSIONS',
+  'PURCHASE':                           'OFFSITE_CONVERSIONS',
+  'PRODUCT_CATALOG_SALES':              'OFFSITE_CONVERSIONS',
+  'CATALOG_SALES':                      'OFFSITE_CONVERSIONS',
+
+  // Tráfico
+  'LANDING_PAGE_VIEW':                  'LANDING_PAGE_VIEWS',
+  'LINK_CLICK':                         'LINK_CLICKS',
+  'OUTBOUND_CLICK':                     'LINK_CLICKS',
+  'CALL_CONFIRMATION':                  'CALL',
+
+  // Alcance / reconocimiento
+  'DAILY_UNIQUE_REACH':                 'REACH',
+  'AD_RECALL_LIFT':                     'BRAND_AWARENESS',
+  'AWARENESS':                          'BRAND_AWARENESS',
+
+  // Engagement
+  'ENGAGED_USERS':                      'POST_ENGAGEMENT',
+  'PAGE_ENGAGEMENT':                    'POST_ENGAGEMENT',
+  'POST_REACTION':                      'POST_ENGAGEMENT',
+  'EVENT_RESPONSE':                     'EVENT_RESPONSES',
+  'PAGE_LIKE':                          'PAGE_LIKES',
+
+  // App
+  'APP_INSTALL':                        'APP_INSTALLS',
+  'APP_EVENT':                          'APP_EVENTS',
+  'MOBILE_APP_INSTALL':                 'APP_INSTALLS',
+
+  // Valor
+  'PURCHASE_ROAS':                      'VALUE',
+  'CONVERSION_VALUE':                   'VALUE',
+};
+
+function normalizeOg(raw){
+  if(!raw) return '';
+  const up = raw.toUpperCase().trim();
+  // 1. Match exacto por alias conocido
+  if(OG_ALIASES[up]) return OG_ALIASES[up];
+  // 2. Match por palabra clave — orden: más específico primero
+  if(up.includes('PROFILE'))                                    return 'PROFILE_VISIT';
+  if(up.includes('THRUPLAY') || up.includes('THRU_PLAY'))       return 'THRUPLAY';
+  if(up.includes('PURCHASE') || up.includes('COMPRA'))          return 'OFFSITE_CONVERSIONS';
+  if(up.includes('VALUE')    || up.includes('ROAS'))            return 'VALUE';
+  if(up.includes('CONVERSATION') || up.includes('REPLY'))       return 'CONVERSATIONS';
+  if(up.includes('MESSAGING'))                                  return 'CONVERSATIONS';
+  if(up.includes('LEAD'))                                       return 'LEAD_GENERATION';
+  if(up.includes('LANDING'))                                    return 'LANDING_PAGE_VIEWS'; // antes de LINK/CLICK
+  if(up.includes('LINK_CLICK') || up.includes('OUTBOUND'))      return 'LINK_CLICKS';        // específico
+  if(up.includes('AWARENESS'))                                  return 'BRAND_AWARENESS';
+  if(up.includes('REACH'))                                      return 'REACH';
+  if(up.includes('IMPRESSION'))                                 return 'IMPRESSIONS';
+  if(up.includes('VIDEO'))                                      return 'THRUPLAY';            // VIDEO_VIEWS etc
+  if(up.includes('ENGAGEMENT') || up.includes('ENGAGED'))       return 'POST_ENGAGEMENT';
+  if(up.includes('LIKE'))                                       return 'PAGE_LIKES';
+  if(up.includes('APP'))                                        return 'APP_INSTALLS';
+  if(up.includes('CALL'))                                       return 'CALL';
+  // 3. Devolver el og original si no hay match — el debug lo mostrará
+  return up;
+}
+
+// Normaliza objective de campaña al grupo interno.
+// El optimization_goal del adset es el source of truth para el evento real.
+function normalizeMetaObjective(metaObj, optimizationGoal){
+  const og=(optimizationGoal||'').toUpperCase();
+  const mo=(metaObj||'').toUpperCase();
+
+  // ── El optimization_goal manda siempre que sea reconocible ──
+  // Ventas / compras
+  if(['OFFSITE_CONVERSIONS','VALUE','MESSAGING_PURCHASE_CONVERSION'].includes(og)) return 'ventas';
+  // Leads
+  if(['LEAD_GENERATION','QUALITY_LEAD','LEAD_GENERATION_MESSAGING'].includes(og)) return 'leads';
+  // Mensajes / conversaciones
+  if(['CONVERSATIONS','REPLIES','MESSAGING_APPOINTMENT_CONVERSION'].includes(og)) return 'mensajes';
+  // Video
+  if(['THRUPLAY','TWO_SECOND_CONTINUOUS_VIDEO_VIEWS'].includes(og)) return 'video';
+  // Reconocimiento / branding
+  if(['REACH','BRAND_AWARENESS','DAILY_UNIQUE_REACH','IMPRESSIONS'].includes(og)) return 'reconocimiento';
+  // Tráfico — todos los subtipos
+  if(['LANDING_PAGE_VIEWS','LINK_CLICKS','PROFILE_VISIT','CALL'].includes(og)) return 'trafico';
+  // Engagement puro
+  if(['POST_ENGAGEMENT','PAGE_LIKES','EVENT_RESPONSES','REMINDER_SET'].includes(og)) return 'engagement';
+  // App
+  if(['APP_INSTALLS','APP_EVENTS'].includes(og)) return 'app';
+
+  // ── Fallback por objective de campaña ──
   const map={
     'OUTCOME_SALES':'ventas',
     'OUTCOME_LEADS':'leads',
     'OUTCOME_TRAFFIC':'trafico',
-    'OUTCOME_ENGAGEMENT':'interaccion',
     'OUTCOME_AWARENESS':'reconocimiento',
+    'OUTCOME_ENGAGEMENT':'engagement',
     'OUTCOME_APP_PROMOTION':'app',
-    // Objetivos legacy (pre-2024)
+    // Legacy
     'CONVERSIONS':'ventas',
     'LEAD_GENERATION':'leads',
     'LINK_CLICKS':'trafico',
     'TRAFFIC':'trafico',
+    'MESSAGES':'mensajes',
     'BRAND_AWARENESS':'reconocimiento',
     'REACH':'reconocimiento',
-    'POST_ENGAGEMENT':'interaccion',
     'VIDEO_VIEWS':'reconocimiento',
-    'MESSAGES':'interaccion',
+    'POST_ENGAGEMENT':'engagement',
     'APP_INSTALLS':'app',
     'PRODUCT_CATALOG_SALES':'ventas',
   };
-  return map[metaObj]||'otros';
+  return map[mo]||'otros';
+}
+
+// Agrupa campañas por objetivo + optimization_goal (cada combinación = bloque separado)
+function groupByObjective(campaigns){
+  const groups={};
+  for(const c of campaigns){
+    const obj=normalizeMetaObjective(c.objective||'UNKNOWN', c.optimization_goal||'');
+    const og=(c.optimization_goal||'NONE').toUpperCase();
+    const key=obj+'||'+og;
+    if(!groups[key]) groups[key]=[];
+    groups[key].push(c);
+  }
+  const result={};
+  for(const [key,list] of Object.entries(groups)){
+    const [obj,og]=key.split('||');
+    result[key]=aggregateCampaigns(list);
+    result[key]._campaignCount=list.length;
+    result[key]._campaignNames=list.map(c=>c.campaign_name||'');
+    result[key]._rawObjective=list[0].objective||'';
+    result[key]._obj=obj;
+    result[key]._optimizationGoal=og;
+  }
+  return result;
 }
 
 function aggregateCampaigns(data){
@@ -1155,17 +1525,27 @@ function aggregateCampaigns(data){
   result.impressions=String(result.impressions);
   result.clicks=String(result.clicks);
   result.reach=String(result.reach);
+  // Preservar el optimization_goal más frecuente para detectBadOptimization
+  const ogCounts={};
+  for(const d of data){ const g=d.optimization_goal||''; ogCounts[g]=(ogCounts[g]||0)+parseFloat(d.spend||0); }
+  result._optimizationGoal=Object.entries(ogCounts).sort((a,b)=>b[1]-a[1])[0]?.[0]||'';
   return result;
 }
 
 // ── EXTRACT ──
-function extract(raw,obj){
+function extract(raw, obj, optimizationGoal=''){
   if(!raw)return null;
   const n=v=>parseFloat(v||0),ii=v=>parseInt(v||0);
-  const spend=n(raw.spend),impressions=ii(raw.impressions),clicks=ii(raw.clicks),reach=ii(raw.reach);
+  const spend=n(raw.spend),impressions=ii(raw.impressions),reach=ii(raw.reach);
   const ctr=n(raw.ctr),cpm=n(raw.cpm),cpc=n(raw.cpc),freq=n(raw.frequency);
   const acts=raw.actions||[],actV=raw.action_values||[];
   const fA=(arr,types)=>{for(const t of types){const f=arr.find(a=>a.action_type===t);if(f)return n(f.value);}return 0;};
+  // Clics en el enlace = link_click action (no el campo clicks que incluye todos los clics)
+  const linkClickAct = fA(acts,['link_click','outbound_click']);
+  const outboundClicks = ii((raw.outbound_clicks||[]).find(o=>o.action_type==='outbound_click')?.value||0);
+  const clicks = linkClickAct>0 ? linkClickAct : outboundClicks>0 ? outboundClicks : ii(raw.clicks||0);
+  // CPC recalculado sobre clics reales en enlace
+  const cpc_real = clicks>0 ? spend/clicks : n(raw.cpc||0);
   const purchases=fA(acts,['purchase','offsite_conversion.fb_pixel_purchase','web_in_store_purchase']);
   const purchaseVal=fA(actV,['purchase','offsite_conversion.fb_pixel_purchase','web_in_store_purchase']);
   const leads=fA(acts,[
@@ -1183,29 +1563,79 @@ function extract(raw,obj){
   const atc=fA(acts,['add_to_cart','offsite_conversion.fb_pixel_add_to_cart']);
   const ic=fA(acts,['initiate_checkout','offsite_conversion.fb_pixel_initiate_checkout']);
   const lpv=fA(acts,['landing_page_view','omni_landing_page_view']);
+  const profileVisit=fA(acts,['onsite_conversion.profile_visit','profile_visit','instagram_profile_visit']);
+  // ThruPlay: viene como array igual que actions
+  const thruplayArr = raw.video_thruplay_watched_actions||[];
+  const thruplayDirect = thruplayArr.length>0 ? parseInt(thruplayArr.reduce((s,v)=>s+parseFloat(v.value||0),0)) : 0;
+  const thruplay = thruplayDirect > 0 ? thruplayDirect : fA(acts,['video_thruplay_watched_actions','video_p100_watched_actions']);
+  const engagementActs=fA(acts,['post_engagement','page_engagement','post_reaction','post_like','comment']);
   let result=0,rl='',rv=0,cpr=0;
   const useObj=obj==='ventas_leads'?'ventas':obj;
-  if(useObj==='ventas'){result=purchases;rl='Compras';rv=purchaseVal;cpr=purchases>0?spend/purchases:0;}
-  else if(useObj==='leads'){
-    if(leads>0){result=leads;rl='Leads';}
-    else if(msgs>0){result=msgs;rl='Conversaciones';}
-    else{result=0;rl='Leads';}
-    cpr=result>0?spend/result:0;
+  const og=(optimizationGoal||'').toUpperCase();
+
+  // ── FUENTE PRIMARIA: results y objective_results de la API ──
+  const apiResults = raw.results||raw.objective_results||[];
+  const apiCostPerResult = raw.cost_per_result||raw.cost_per_objective_result||[];
+  const apiResultVal = apiResults.length>0 ? n(apiResults[0].value||0) : 0;
+  const apiCprVal   = apiCostPerResult.length>0 ? n(apiCostPerResult[0].value||0) : 0;
+  const apiResultLabel = apiResults.length>0 ? (apiResults[0].indicator||apiResults[0].result_type||'') : '';
+
+  // Determinar resultado y label según optimization_goal primero, luego fallback por objetivo
+  if(og==='CONVERSATIONS'||og==='REPLIES'||og==='MESSAGING_PURCHASE_CONVERSION'){
+    result=msgs>0?msgs:0; rl='Conversaciones'; cpr=result>0?spend/result:0;
+  } else if(og==='LEAD_GENERATION'||og==='QUALITY_LEAD'){
+    result=leads>0?leads:0; rl='Leads'; cpr=result>0?spend/result:0;
+  } else if(og==='LANDING_PAGE_VIEWS'){
+    result=lpv>0?lpv:clicks; rl='Visitas landing'; cpr=result>0?spend/result:0;
+  } else if(og==='PROFILE_VISIT'){
+    result=profileVisit>0?profileVisit:(lpv>0?lpv:clicks); rl='Visitas al perfil'; cpr=result>0?spend/result:0;
+  } else if(og==='LINK_CLICKS'){
+    result=clicks; rl='Clics'; cpr=result>0?spend/result:0;
+  } else if(og==='REACH'||(useObj==='reconocimiento'&&og!=='THRUPLAY'&&og!=='TWO_SECOND_CONTINUOUS_VIDEO_VIEWS')){
+    result=reach; rl='Alcance'; cpr=0;
+  } else if(og==='IMPRESSIONS'||og==='BRAND_AWARENESS'){
+    result=impressions; rl='Impresiones'; cpr=impressions>0?spend/impressions*1000:0; // CPM
+  } else if(og==='THRUPLAY'||og==='TWO_SECOND_CONTINUOUS_VIDEO_VIEWS'){
+    result=thruplay; rl='ThruPlays'; cpr=result>0?spend/result:0;
+  } else if(og==='POST_ENGAGEMENT'||og==='PAGE_LIKES'){
+    result=engagementActs; rl='Interacciones'; cpr=result>0?spend/result:0;
+  } else if(og==='OFFSITE_CONVERSIONS'||og==='VALUE'){
+    result=purchases; rl='Compras'; rv=purchaseVal; cpr=purchases>0?spend/purchases:0;
+  } else {
+    // Fallback por objetivo padre
+    if(useObj==='ventas'){result=purchases;rl='Compras';rv=purchaseVal;cpr=purchases>0?spend/purchases:0;}
+    else if(useObj==='leads'){
+      if(leads>0){result=leads;rl='Leads';}
+      else if(msgs>0){result=msgs;rl='Conversaciones';}
+      else{result=0;rl='Leads';}
+      cpr=result>0?spend/result:0;
+    }
+    else if(useObj==='mensajes'||useObj==='conversaciones'||useObj==='interaccion'){
+      if(msgs>0){result=msgs;rl='Conversaciones';}
+      else if(leads>0){result=leads;rl='Mensajes/Leads';}
+      else{result=0;rl='Conversaciones';}
+      cpr=result>0?spend/result:0;
+    }
+    else if(useObj==='video'){result=thruplay;rl='ThruPlays';cpr=result>0?spend/result:0;}
+    else if(useObj==='engagement'){result=engagementActs;rl='Interacciones';cpr=result>0?spend/result:0;}
+    else if(useObj==='registros'){result=regs;rl='Registros';cpr=regs>0?spend/regs:0;}
+    else if(useObj==='trafico'){result=lpv>0?lpv:clicks;rl=lpv>0?'Visitas landing':'Clics';cpr=result>0?spend/result:0;}
+    else if(useObj==='reconocimiento'){result=reach;rl='Alcance';}
+    else{rl='—';}
   }
-  else if(useObj==='conversaciones'||useObj==='interaccion'){
-    if(msgs>0){result=msgs;rl='Conversaciones';}
-    else if(leads>0){result=leads;rl='Mensajes/Leads';}
-    else{result=0;rl='Conversaciones';}
-    cpr=result>0?spend/result:0;
+  // Si la API devolvió results directos, tienen prioridad (son los mismos que Ads Manager)
+  if(apiResultVal>0 && result===0){
+    result=apiResultVal;
+    cpr=apiCprVal>0?apiCprVal:cpr;
+    if(!rl) rl=apiResultLabel||'Resultados';
+  } else if(apiResultVal>0 && apiCprVal>0){
+    // Corregir cpr con el valor oficial de la API
+    cpr=apiCprVal;
   }
-  else if(useObj==='registros'){result=regs;rl='Registros';cpr=regs>0?spend/regs:0;}
-  else if(useObj==='trafico'){result=lpv>0?lpv:clicks;rl=lpv>0?'LPV':'Clics';cpr=result>0?spend/result:0;}
-  else if(useObj==='reconocimiento'){result=0;rl='Alcance';}
-  else{rl='—';}
   const extraLeads=obj==='ventas_leads'?leads:0;
   const invFact=(useObj==='ventas'&&rv>0&&spend>0)?(spend/rv)*100:null;
   const roas=(rv>0&&spend>0)?rv/spend:null;
-  return{spend,impressions,clicks,reach,ctr,cpm,cpc,freq,purchases,purchaseVal,leads,msgs,atc,ic,lpv,result,rl,rv,cpr,invFact,roas,extraLeads};
+  return{spend,impressions,clicks,reach,ctr,cpm:cpm,cpc:cpc_real,freq,purchases,purchaseVal,leads,msgs,atc,ic,lpv,profileVisit,thruplay,engagementActs,result,rl,rv,cpr,invFact,roas,extraLeads,optimizationGoal:og};
 }
 
 // ── STRATEGIC BRAIN ──
@@ -1349,47 +1779,108 @@ function calcPace(spent,budget){
 // ── OBJECTIVE BLOCKS ──
 // KPI principal y evento correcto por objetivo
 const OBJ_META = {
-  ventas:       { label:'Ventas',        kpiLabel:'Compras',        troncal:'purchases', correctEvents:['purchase','offsite_conversion.fb_pixel_purchase'], icon:'🛒' },
-  leads:        { label:'Leads',         kpiLabel:'Leads',          troncal:'leads',     correctEvents:['lead','offsite_conversion.fb_pixel_lead','onsite_conversion.lead_grouped'], icon:'📋' },
-  trafico:      { label:'Tráfico',       kpiLabel:'Clics / LPV',    troncal:'clicks',    correctEvents:['landing_page_view','link_click'], icon:'🔗' },
-  interaccion:  { label:'Interacción',   kpiLabel:'Conversaciones', troncal:'msgs',      correctEvents:['onsite_conversion.messaging_conversation_started_7d','onsite_conversion.total_messaging_connection','post_engagement'], icon:'💬' },
-  reconocimiento:{ label:'Reconocimiento',kpiLabel:'Alcance',       troncal:'reach',     correctEvents:['reach','impressions'], icon:'👁' },
-  app:          { label:'App',           kpiLabel:'Instalaciones',  troncal:'installs',  correctEvents:['mobile_app_install'], icon:'📱' },
-  otros:        { label:'Otros',         kpiLabel:'Resultados',     troncal:'result',    correctEvents:[], icon:'📊' },
+  ventas:        { label:'Ventas',          kpiLabel:'Compras',           troncal:'purchases', correctEvents:['purchase','offsite_conversion.fb_pixel_purchase'], icon:'🛒' },
+  leads:         { label:'Leads',           kpiLabel:'Leads',             troncal:'leads',     correctEvents:['lead','offsite_conversion.fb_pixel_lead','onsite_conversion.lead_grouped'], icon:'📋' },
+  trafico:       { label:'Tráfico',         kpiLabel:'Clics / LPV',       troncal:'clicks',    correctEvents:['landing_page_view','link_click'], icon:'🔗' },
+  mensajes:      { label:'Mensajes',        kpiLabel:'Conversaciones',    troncal:'msgs',      correctEvents:['onsite_conversion.messaging_conversation_started_7d','onsite_conversion.total_messaging_connection','onsite_conversion.messaging_first_reply'], icon:'💬' },
+  interaccion:   { label:'Interacción',     kpiLabel:'Conversaciones',    troncal:'msgs',      correctEvents:['onsite_conversion.messaging_conversation_started_7d','onsite_conversion.total_messaging_connection'], icon:'💬' },
+  video:         { label:'Video',           kpiLabel:'ThruPlays',         troncal:'thruplay',  correctEvents:['video_thruplay_watched_actions'], icon:'▶️' },
+  engagement:    { label:'Engagement',      kpiLabel:'Interacciones',     troncal:'engagement',correctEvents:['post_engagement','page_engagement'], icon:'👍' },
+  reconocimiento:{ label:'Reconocimiento',  kpiLabel:'Alcance',           troncal:'reach',     correctEvents:['reach','impressions'], icon:'👁' },
+  app:           { label:'App',             kpiLabel:'Instalaciones',     troncal:'installs',  correctEvents:['mobile_app_install'], icon:'📱' },
+  otros:         { label:'Otros',           kpiLabel:'Resultados',        troncal:'result',    correctEvents:[], icon:'📊' },
 };
 
-function buildObjBlocks(byObjW1, byObjW2, byObjM1, byObjM2, acc){
-  // Unión de todos los objetivos encontrados en todos los períodos
-  const allObjs = new Set([
+// Mapa optimization_goal → label y KPI principal (basado en doc oficial Meta)
+// Fuente: https://www.facebook.com/business/help/optimization-goals
+const OPT_GOAL_META = {
+  // ── VENTAS ──
+  'OFFSITE_CONVERSIONS':             { label:'Conversiones',        kpi:'Compras',          troncal:'purchases',     badFor:[] },
+  'VALUE':                           { label:'Valor de conversión', kpi:'ROAS',             troncal:'roas',          badFor:[] },
+  'MESSAGING_PURCHASE_CONVERSION':   { label:'Compras x mensaje',   kpi:'Conversaciones',   troncal:'msgs',          badFor:[] },
+  // ── LEADS ──
+  'LEAD_GENERATION':                 { label:'Clientes potenciales',kpi:'Leads',            troncal:'leads',         badFor:[] },
+  'QUALITY_LEAD':                    { label:'Leads calificados',   kpi:'Leads',            troncal:'leads',         badFor:[] },
+  'LEAD_GENERATION_MESSAGING':       { label:'Leads x mensajes',    kpi:'Leads',            troncal:'leads',         badFor:[] },
+  // ── MENSAJES / CONVERSACIONES ──
+  'CONVERSATIONS':                   { label:'Conversaciones',      kpi:'Conversaciones',   troncal:'msgs',          badFor:[] },
+  'REPLIES':                         { label:'Respuestas',          kpi:'Conversaciones',   troncal:'msgs',          badFor:[] },
+  'MESSAGING_APPOINTMENT_CONVERSION':{ label:'Citas x mensaje',     kpi:'Conversaciones',   troncal:'msgs',          badFor:[] },
+  // ── TRÁFICO ──
+  'LANDING_PAGE_VIEWS':              { label:'Visitas a landing',   kpi:'Visitas landing',  troncal:'lpv',           badFor:['reconocimiento'] },
+  'LINK_CLICKS':                     { label:'Clics en enlace',     kpi:'Clics',            troncal:'clicks',        badFor:['ventas','leads','reconocimiento'] },
+  'PROFILE_VISIT':                   { label:'Visitas al perfil',   kpi:'Visitas perfil',   troncal:'profileVisit',  badFor:[] },
+  'CALL':                            { label:'Llamadas',            kpi:'Llamadas',         troncal:'clicks',        badFor:[] },
+  // ── ALCANCE / RECONOCIMIENTO ──
+  'REACH':                           { label:'Alcance',             kpi:'Alcance',          troncal:'reach',         badFor:[] },
+  'BRAND_AWARENESS':                 { label:'Recuerdo de anuncio', kpi:'Alcance',          troncal:'reach',         badFor:[] },
+  'DAILY_UNIQUE_REACH':              { label:'Alcance diario único',kpi:'Alcance',          troncal:'reach',         badFor:[] },
+  'IMPRESSIONS':                     { label:'Impresiones',         kpi:'Impresiones',      troncal:'impressions',   badFor:['ventas','leads'] },
+  // ── VIDEO ──
+  'THRUPLAY':                        { label:'ThruPlays',           kpi:'ThruPlays',        troncal:'thruplay',      badFor:[] },
+  'TWO_SECOND_CONTINUOUS_VIDEO_VIEWS':{ label:'Vistas de video 2s', kpi:'Vistas 2s',        troncal:'thruplay',      badFor:[] },
+  // ── ENGAGEMENT / INTERACCIÓN ──
+  'POST_ENGAGEMENT':                 { label:'Interacción con post',kpi:'Interacciones',    troncal:'engagement',    badFor:['ventas','leads'] },
+  'PAGE_LIKES':                      { label:'Me gustas de página', kpi:'Me gustas',        troncal:'engagement',    badFor:['ventas','leads'] },
+  'EVENT_RESPONSES':                 { label:'Respuestas a evento', kpi:'Respuestas',       troncal:'engagement',    badFor:[] },
+  'REMINDER_SET':                    { label:'Recordatorios',       kpi:'Recordatorios',    troncal:'engagement',    badFor:[] },
+  // ── APP ──
+  'APP_INSTALLS':                    { label:'Instalaciones App',   kpi:'Instalaciones',    troncal:'installs',      badFor:[] },
+  'APP_EVENTS':                      { label:'Eventos de App',      kpi:'Eventos',          troncal:'installs',      badFor:[] },
+};
+
+function getOptGoalMeta(optimizationGoal, objMeta){
+  const og = (optimizationGoal||'').toUpperCase();
+  if(og && og!=='NONE' && OPT_GOAL_META[og]) return OPT_GOAL_META[og];
+  // fallback al obj meta
+  return { label: objMeta.label, kpi: objMeta.kpiLabel, troncal: objMeta.troncal };
+}
+
+function buildObjBlocks(byObjW1, byObjW2, byObjM1, byObjM2, acc, dailyData=[]){
+  // Unión de todas las claves (obj||optimizationGoal) encontradas en todos los períodos
+  const allKeys = new Set([
     ...Object.keys(byObjW1), ...Object.keys(byObjW2),
     ...Object.keys(byObjM1), ...Object.keys(byObjM2)
   ]);
   const blocks = [];
-  for(const obj of allObjs){
-    const rawW1 = byObjW1[obj]||null;
-    const rawW2 = byObjW2[obj]||null;
-    const rawM1 = byObjM1[obj]||null;
-    const rawM2 = byObjM2[obj]||null;
-    const meta = OBJ_META[obj]||OBJ_META.otros;
-    const w1 = extract(rawW1, obj);
-    const w2 = extract(rawW2, obj);
-    const m1 = extract(rawM1, obj);
-    const m2 = extract(rawM2, obj);
-    // Análisis comparativo por objetivo
+  for(const key of allKeys){
+    const rawW1 = byObjW1[key]||null;
+    const rawW2 = byObjW2[key]||null;
+    const rawM1 = byObjM1[key]||null;
+    const rawM2 = byObjM2[key]||null;
+    // key puede ser 'ventas||OFFSITE_CONVERSIONS' o simplemente 'ventas' (legacy)
+    const parts = key.split('||');
+    const obj = parts[0];
+    const optimizationGoal = parts[1]||'NONE';
+    const objMeta = OBJ_META[obj]||OBJ_META.otros;
+    const optMeta = getOptGoalMeta(optimizationGoal, objMeta);
+    // meta combinado: icon del objetivo padre, label del optimization_goal
+    const meta = {
+      icon: objMeta.icon,
+      label: optMeta.label,
+      parentLabel: objMeta.label,
+      kpiLabel: optMeta.kpi,
+      troncal: optMeta.troncal,
+      optimizationGoal,
+    };
+    const w1 = extract(rawW1, obj, optimizationGoal);
+    const w2 = extract(rawW2, obj, optimizationGoal);
+    const m1 = extract(rawM1, obj, optimizationGoal);
+    const m2 = extract(rawM2, obj, optimizationGoal);
     const diagW = analyzeObjBlock(w1, w2, obj, acc.moneda||'ARS', false);
     const diagM = analyzeObjBlock(m1, m2, obj, acc.moneda||'ARS', true);
-    // diag legacy (para compatibilidad con renderObjBlocks antiguo)
-    const diag = diagM||diagW;
     const badConfig = detectBadOptimization(obj, rawW1||rawM1);
     blocks.push({
       obj, meta,
       w1, w2, m1, m2,
       diagW, diagM, badConfig,
+      optimizationGoal,
+      dailyData,
       campaignCount: (rawW1||rawM1)?._campaignCount||0,
       campaignNames: (rawW1||rawM1)?._campaignNames||[],
     });
   }
-  const order = ['ventas','leads','trafico','interaccion','reconocimiento','app','otros'];
+  const order = ['ventas','leads','trafico','mensajes','interaccion','video','engagement','reconocimiento','app','otros'];
   blocks.sort((a,b)=>order.indexOf(a.obj)-order.indexOf(b.obj));
   return blocks;
 }
@@ -1398,23 +1889,31 @@ function detectBadOptimization(obj, raw){
   if(!raw) return null;
   const acts = raw.actions||[];
   const n = v=>parseFloat(v||0);
-  // Para mensajes/interaccion: si tiene clics pero no tiene conversaciones → mal configurado
-  if(obj==='interaccion'||obj==='leads'){
-    const linkClicks = n(acts.find(a=>a.action_type==='link_click')?.value||0);
-    const convs = n(acts.find(a=>a.action_type==='onsite_conversion.messaging_conversation_started_7d')?.value||0)
-                + n(acts.find(a=>a.action_type==='onsite_conversion.total_messaging_connection')?.value||0);
-    const leads = n(acts.find(a=>a.action_type==='lead')?.value||0)
-                + n(acts.find(a=>a.action_type==='offsite_conversion.fb_pixel_lead')?.value||0);
-    if(linkClicks>0 && convs===0 && leads===0){
-      return {
-        type:'config',
-        msg: obj==='leads'
-          ? '⚠️ Campaña de Leads optimizando por Clics en el enlace — Meta busca clickers, no leads. Cambiar evento de optimización a Lead o Pixel Lead.'
-          : '⚠️ Campaña de Mensajes optimizando por Clics — Meta busca clickers, no conversaciones. Cambiar a optimización por Conversaciones iniciadas.'
-      };
-    }
+  const og = (raw._optimizationGoal||'').toUpperCase();
+  const ogMeta = OPT_GOAL_META[og];
+
+  // Detección genérica por badFor
+  if(ogMeta && ogMeta.badFor && ogMeta.badFor.includes(obj)){
+    const msgs = {
+      'LINK_CLICKS': {
+        ventas: '⚠️ Campañas de Ventas optimizando por Clics — Meta busca clickers, no compradores. Cambiar a optimización por Conversiones o Valor.',
+        leads:  '⚠️ Campañas de Leads optimizando por Clics — Meta busca clickers, no leads. Cambiar a Clientes potenciales o Lead pixel.',
+        reconocimiento: '⚠️ Campaña de Reconocimiento optimizando por Clics — usar Alcance o Recuerdo de anuncio es más eficiente para branding.',
+      },
+      'IMPRESSIONS': {
+        ventas: '⚠️ Campañas de Ventas optimizando por Impresiones — poco eficiente para generar conversiones.',
+        leads:  '⚠️ Campañas de Leads optimizando por Impresiones — poco eficiente para captar leads.',
+      },
+      'POST_ENGAGEMENT': {
+        ventas: '⚠️ Campañas de Ventas optimizando por Interacción — Meta busca likes/comentarios, no compradores.',
+        leads:  '⚠️ Campañas de Leads optimizando por Interacción — Meta busca engagement, no leads.',
+      },
+    };
+    const msg = msgs[og]?.[obj];
+    if(msg) return { type:'config', msg };
   }
-  // Para ventas: si tiene clics pero 0 compras y 0 ATC → posible mal config o checkout roto
+
+  // Ventas: clics sin compras → pixel roto o checkout roto
   if(obj==='ventas'){
     const purchases = n(acts.find(a=>a.action_type==='purchase')?.value||0)
                     + n(acts.find(a=>a.action_type==='offsite_conversion.fb_pixel_purchase')?.value||0);
@@ -1423,13 +1922,25 @@ function detectBadOptimization(obj, raw){
     const ic = n(acts.find(a=>a.action_type==='initiate_checkout')?.value||0)
              + n(acts.find(a=>a.action_type==='offsite_conversion.fb_pixel_initiate_checkout')?.value||0);
     const linkClicks = n(acts.find(a=>a.action_type==='link_click')?.value||0);
-    if(linkClicks>50 && purchases===0 && atc===0){
+    if(linkClicks>50 && purchases===0 && atc===0)
       return { type:'pixel', msg:'⚠️ Hay clics pero 0 compras y 0 ATC — posible pixel no instalado o mal configurado. Verificar instalación del Pixel de Meta.' };
-    }
-    if(ic>0 && purchases===0){
+    if(ic>0 && purchases===0)
       return { type:'checkout', msg:'⚠️ Hay inicios de pago pero 0 compras — rotura de checkout. El tráfico llega pero no finaliza la compra.' };
-    }
   }
+
+  // Leads/mensajes: clics sin conversaciones ni leads → mal configurado
+  if(obj==='leads'||obj==='mensajes'||obj==='interaccion'){
+    const linkClicks = n(acts.find(a=>a.action_type==='link_click')?.value||0);
+    const convs = n(acts.find(a=>a.action_type==='onsite_conversion.messaging_conversation_started_7d')?.value||0)
+                + n(acts.find(a=>a.action_type==='onsite_conversion.total_messaging_connection')?.value||0);
+    const leads = n(acts.find(a=>a.action_type==='lead')?.value||0)
+                + n(acts.find(a=>a.action_type==='offsite_conversion.fb_pixel_lead')?.value||0);
+    if(linkClicks>20 && convs===0 && leads===0 && og==='LINK_CLICKS')
+      return { type:'config', msg: obj==='leads'
+        ? '⚠️ Campañas de Leads optimizando por Clics — Meta busca clickers, no leads. Cambiar evento a Lead o Pixel Lead.'
+        : '⚠️ Campañas de Mensajes optimizando por Clics — Meta busca clickers, no conversaciones. Cambiar a Conversaciones iniciadas.' };
+  }
+
   return null;
 }
 
@@ -1503,10 +2014,11 @@ function analyzeObjBlock(curr, prev, obj, moneda, isMensual){
     if(curr.result>0&&curr.cpr>0){
       const resDelta = prev?.result>0 ? delta(curr.result, prev.result) : '';
       const cprDelta = prev?.cpr>0 ? delta(curr.cpr, prev.cpr, true) : '';
+      const cprLbl = `Costo x ${curr.rl}`;
       diags.push({type:'positive',
-        title:`${curr.rl}: ${fn(curr.result)}${resDelta} · CPR: ${fmoney(curr.cpr,moneda)}${cprDelta}`,
-        detail:`${prev?`Ant: ${fn(prev.result)} resultados · CPR: ${fmoney(prev.cpr,moneda)}`:'Sin dato anterior'}`,
-        nums:[`${curr.rl}: ${fn(curr.result)}`,`CPR: ${fmoney(curr.cpr,moneda)}`,`Inversión: ${fmoney(curr.spend,moneda)}`]
+        title:`${curr.rl}: ${fn(curr.result)}${resDelta} · ${cprLbl}: ${fmoney(curr.cpr,moneda)}${cprDelta}`,
+        detail:`${prev?`Ant: ${fn(prev.result)} ${curr.rl} · ${cprLbl}: ${fmoney(prev.cpr,moneda)}`:'Sin dato anterior'}`,
+        nums:[`${curr.rl}: ${fn(curr.result)}`,`${cprLbl}: ${fmoney(curr.cpr,moneda)}`,`Inversión: ${fmoney(curr.spend,moneda)}`]
       });
     }
   }
@@ -1527,12 +2039,12 @@ async function runAudit(){
     const acc=selected[i];
     updStep(`[${i+1}/${total}] ${acc.cliente}`);updBar(((i+1)/total)*100);
     try{
-      // Filtro de campaña desde la tabla (editable inline)
-      const cf = getCampFilter(acc) || null;
+      // Filtro de campaña: manual (tabla) > automático (isShared) > null
+      const cf = getCampFilter(acc) || getAutoSharedFilter(acc) || null;
       const objEfectivo = acc.objetivo;
       const accEf = acc;
-      // Traer datos globales de cuenta (para totales) y por campaña (para desglose por objetivo)
-      const [w1r,w2r,m1r,m2r,campW1,campW2,campM1,campM2]=await Promise.all([
+      // Traer datos globales + adsets (con optimization_goal real) en paralelo
+      const [w1r,w2r,m1r,m2r,campW1,campW2,campM1,campM2,dailyM1]=await Promise.all([
         fetchIns(acc.cuentaPub,ranges.w1.since,ranges.w1.until,cf),
         fetchIns(acc.cuentaPub,ranges.w2.since,ranges.w2.until,cf),
         fetchIns(acc.cuentaPub,ranges.m1.since,ranges.m1.until,cf),
@@ -1541,6 +2053,7 @@ async function runAudit(){
         fetchCampaigns(acc.cuentaPub,ranges.w2.since,ranges.w2.until,cf),
         fetchCampaigns(acc.cuentaPub,ranges.m1.since,ranges.m1.until,cf),
         fetchCampaigns(acc.cuentaPub,ranges.m2.since,ranges.m2.until,cf),
+        fetchDaily(acc.cuentaPub,ranges.m1.since,ranges.m1.until,cf),
       ]);
       const w1=extract(w1r,objEfectivo),w2=extract(w2r,objEfectivo);
       const m1=extract(m1r,objEfectivo),m2=extract(m2r,objEfectivo);
@@ -1551,7 +2064,7 @@ async function runAudit(){
       const byObjM1=groupByObjective(campM1);
       const byObjM2=groupByObjective(campM2);
       // Construir bloques de KPI por objetivo con comparación
-      const objBlocks=buildObjBlocks(byObjW1,byObjW2,byObjM1,byObjM2,accEf);
+      const objBlocks=buildObjBlocks(byObjW1,byObjW2,byObjM1,byObjM2,accEf,dailyM1);
       results.push({acc:accEf,w1,w2,m1,m2,wD,mD,objBlocks,error:null});
     }catch(e){results.push({acc,error:e.message});}
   }
@@ -1627,60 +2140,20 @@ function renderCard(r,idx,ranges){
 }
 
 function renderBrandBody(r,ranges){
-  const{acc,w1,w2,m1,m2,wD,mD}=r;
-  const budBlock=acc.pres_ars>0&&m1?renderBudget(m1.spend,acc.pres_ars,m1,acc.objetivo,acc.moneda||'ARS'):'';
-  return`<div class="mg4">
-    ${mc('Alcance (Mes)',m1?.reach,m2?.reach,'',false)}
-    ${mc('CPM (Mes)',m1?.cpm,m2?.cpm,'CUR',true,'',acc.moneda)}
-    ${mc('Frecuencia (Mes)',m1?.freq,m2?.freq,'',true)}
-    ${mc('Inversión (Mes)',m1?.spend,m2?.spend,'CUR',false,'',acc.moneda)}
-  </div>
-  ${budBlock?`<div style="padding:14px 24px 0;">${budBlock}</div>`:''}
-  <div class="cwrap">
-    <div class="sdivider" style="margin-bottom:12px;">Comparación de Períodos</div>
-    ${compTable(r,ranges,acc.moneda)}
-  </div>
-  <div class="dwrap" style="padding-bottom:0;">
-    <div class="sdivider" style="margin-bottom:16px;">KPIs por Objetivo · Campañas Activas</div>
-    ${r.objBlocks&&r.objBlocks.length>0?renderObjBlocks(r.objBlocks,acc):'<div style="padding:16px;color:var(--muted);font-size:13px;">Sin campañas activas en el período analizado.</div>'}
-  </div>
-  <div class="dwrap">
-    <div style="margin-bottom:24px;">
-      <div class="dst">Diagnóstico Semanal · ${ranges.w1.label} vs ${ranges.w2.label}</div>
-      ${renderDiag(wD)}
-    </div>
-    <div>
-      <div class="dst">Diagnóstico Mensual · Mes actual vs mismo período mes anterior</div>
-      ${renderDiag(mD)}
-    </div>
-    <div style="margin-top:24px;">
-      <div class="dst">Cerebro Estratégico · Conclusiones & Próximos Pasos</div>
-      <div id="ai_${safeId(acc.cuentaPub)}" class="ai-conclusion-box">
-        <div class="ai-loading">
-          <div class="lring" style="width:20px;height:20px;border-width:2px;"></div>
-          <span style="font-size:12px;color:var(--muted)">Generando análisis estratégico...</span>
-        </div>
-      </div>
-    </div>
-  </div>`;
+  return renderPerfBody(r,ranges,'');
 }
 
 function renderPerfBody(r,ranges,budBlock){
   const{acc,w1,w2,m1,m2,wD,mD}=r;
-  return`<div class="mg4">
-    ${mc('Resultados (Mes)',m1?.result,m2?.result,'',false,m1?.rl||'')}
-    ${mc('Costo x Resultado (Mes)',m1?.cpr,m2?.cpr,'CUR',true,'',acc.moneda)}
-    ${mc('Resultados (7D)',w1?.result,w2?.result,'',false,w1?.rl||'')}
-    ${mc('Costo x Resultado (7D)',w1?.cpr,w2?.cpr,'CUR',true,'',acc.moneda)}
-  </div>
-  ${budBlock?`<div style="padding:14px 24px 0;">${budBlock}</div>`:''}
-  <div class="cwrap">
-    <div class="sdivider" style="margin-bottom:12px;">Comparación de Períodos</div>
-    ${compTable(r,ranges,acc.moneda)}
-  </div>
+  return`
   <div class="dwrap" style="padding-bottom:0;">
     <div class="sdivider" style="margin-bottom:16px;">KPIs por Objetivo · Campañas Activas</div>
     ${r.objBlocks&&r.objBlocks.length>0?renderObjBlocks(r.objBlocks,acc):'<div style="padding:16px;color:var(--muted);font-size:13px;">Sin campañas activas en el período analizado.</div>'}
+  </div>
+  ${budBlock?`<div class="cwrap">${budBlock}</div>`:''}
+  <div class="cwrap">
+    <div class="sdivider" style="margin-bottom:12px;">Comparación de Períodos · Cuenta Total</div>
+    ${compTable(r,ranges,acc.moneda)}
   </div>
   <div class="dwrap">
     <div style="margin-bottom:24px;">
@@ -1757,7 +2230,7 @@ function compTable(r,ranges,moneda='ARS'){
     ['CPM',w1?.cpm,w2?.cpm,m1?.cpm,m2?.cpm,'CUR',true],
     ['CPC',w1?.cpc,w2?.cpc,m1?.cpc,m2?.cpc,'CUR',true],
     ['Frecuencia',w1?.freq,w2?.freq,m1?.freq,m2?.freq,'',true],
-    ['Costo x Resultado',w1?.cpr,w2?.cpr,m1?.cpr,m2?.cpr,'CUR',true],
+    [`Costo x ${rl}`,w1?.cpr,w2?.cpr,m1?.cpr,m2?.cpr,'CUR',true],
     [rl,w1?.result,w2?.result,m1?.result,m2?.result,'',false],
   ];
   
@@ -1877,77 +2350,254 @@ function renderAIConclusion(el, ai){
 function renderObjBlocks(blocks, acc){
   if(!blocks||!blocks.length) return '';
   return blocks.map(b=>{
-    const {obj, meta, w1, w2, m1, m2, badConfig, campaignCount} = b;
+    const {obj, meta, w1, w2, m1, m2, badConfig, campaignCount, optimizationGoal, dailyData} = b;
     const moneda = acc.moneda||'ARS';
+    const cur = m1||w1;
+    if(!cur) return '';
 
-    // KPI principal según objetivo
-    let kpiHtml = '';
-    if(obj==='ventas'&&m1){
-      const roasVal = m1.roas?`${m1.roas.toFixed(2)}x`:'—';
-      const ratioVal = m1.invFact?`${m1.invFact.toFixed(1)}%`:'—';
-      const ratioColor = !m1.invFact?'var(--muted)':m1.invFact<=15?'var(--green)':m1.invFact<=20?'var(--yellow)':'var(--red)';
-      kpiHtml=`
-        <div class="obj-kpis">
-          <div class="obj-kpi"><div class="obj-kpi-label">Compras</div><div class="obj-kpi-val">${fn(m1.purchases)}</div></div>
-          <div class="obj-kpi"><div class="obj-kpi-label">Costo x Compra</div><div class="obj-kpi-val">${m1.cpr>0?fmoney(m1.cpr,moneda):'—'}</div></div>
-          <div class="obj-kpi"><div class="obj-kpi-label">ROAS</div><div class="obj-kpi-val" style="color:${m1.roas>=2?'var(--green)':m1.roas>=1?'var(--yellow)':'var(--red)'}">${roasVal}</div></div>
-          <div class="obj-kpi"><div class="obj-kpi-label">Inv/Fact</div><div class="obj-kpi-val" style="color:${ratioColor}">${ratioVal}</div></div>
-          ${w1?`<div class="obj-kpi obj-kpi-7d"><div class="obj-kpi-label">7D · Compras</div><div class="obj-kpi-val">${fn(w1.purchases)}</div></div>
-          <div class="obj-kpi obj-kpi-7d"><div class="obj-kpi-label">7D · CPR</div><div class="obj-kpi-val">${w1.cpr>0?fmoney(w1.cpr,moneda):'—'}</div></div>`:''}
-        </div>`;
-    } else if(obj==='leads'&&(m1||w1)){
-      const cur = m1||w1;
-      kpiHtml=`
-        <div class="obj-kpis">
-          <div class="obj-kpi"><div class="obj-kpi-label">${cur.rl} (Mes)</div><div class="obj-kpi-val">${fn(cur.result)}</div></div>
-          <div class="obj-kpi"><div class="obj-kpi-label">Costo x ${cur.rl}</div><div class="obj-kpi-val">${cur.cpr>0?fmoney(cur.cpr,moneda):'—'}</div></div>
-          <div class="obj-kpi"><div class="obj-kpi-label">Inversión</div><div class="obj-kpi-val">${fmoney(cur.spend,moneda)}</div></div>
-          ${w1?`<div class="obj-kpi obj-kpi-7d"><div class="obj-kpi-label">7D · ${w1.rl}</div><div class="obj-kpi-val">${fn(w1.result)}</div></div>
-          <div class="obj-kpi obj-kpi-7d"><div class="obj-kpi-label">7D · CPR</div><div class="obj-kpi-val">${w1.cpr>0?fmoney(w1.cpr,moneda):'—'}</div></div>`:''}
-        </div>`;
-    } else if(obj==='trafico'&&(m1||w1)){
-      const cur = m1||w1;
-      kpiHtml=`
-        <div class="obj-kpis">
-          <div class="obj-kpi"><div class="obj-kpi-label">Clics (Mes)</div><div class="obj-kpi-val">${fn(cur.clicks)}</div></div>
-          <div class="obj-kpi"><div class="obj-kpi-label">CTR</div><div class="obj-kpi-val" style="color:${cur.ctr>=1?'var(--green)':cur.ctr>=0.5?'var(--yellow)':'var(--red)'}">${cur.ctr.toFixed(2)}%</div></div>
-          <div class="obj-kpi"><div class="obj-kpi-label">CPC</div><div class="obj-kpi-val">${fmoney(cur.cpc,moneda)}</div></div>
-          ${w1?`<div class="obj-kpi obj-kpi-7d"><div class="obj-kpi-label">7D · CTR</div><div class="obj-kpi-val">${w1.ctr.toFixed(2)}%</div></div>
-          <div class="obj-kpi obj-kpi-7d"><div class="obj-kpi-label">7D · CPC</div><div class="obj-kpi-val">${fmoney(w1.cpc,moneda)}</div></div>`:''}
-        </div>`;
-    } else if(obj==='reconocimiento'&&(m1||w1)){
-      const cur = m1||w1;
-      const freqColor = cur.freq>=5?'var(--red)':cur.freq>=3.5?'var(--yellow)':'var(--green)';
-      kpiHtml=`
-        <div class="obj-kpis">
-          <div class="obj-kpi"><div class="obj-kpi-label">Alcance (Mes)</div><div class="obj-kpi-val">${fn(cur.reach)}</div></div>
-          <div class="obj-kpi"><div class="obj-kpi-label">CPM</div><div class="obj-kpi-val">${fmoney(cur.cpm,moneda)}</div></div>
-          <div class="obj-kpi"><div class="obj-kpi-label">Frecuencia</div><div class="obj-kpi-val" style="color:${freqColor}">${cur.freq.toFixed(1)}</div></div>
-          ${w1?`<div class="obj-kpi obj-kpi-7d"><div class="obj-kpi-label">7D · Alcance</div><div class="obj-kpi-val">${fn(w1.reach)}</div></div>
-          <div class="obj-kpi obj-kpi-7d"><div class="obj-kpi-label">7D · Freq</div><div class="obj-kpi-val" style="color:${w1.freq>=3.5?'var(--yellow)':'inherit'}">${w1.freq.toFixed(1)}</div></div>`:''}
-        </div>`;
-    } else if((m1||w1)){
-      const cur = m1||w1;
-      kpiHtml=`
-        <div class="obj-kpis">
-          <div class="obj-kpi"><div class="obj-kpi-label">${cur.rl||'Resultados'}</div><div class="obj-kpi-val">${fn(cur.result)}</div></div>
-          <div class="obj-kpi"><div class="obj-kpi-label">CPR</div><div class="obj-kpi-val">${cur.cpr>0?fmoney(cur.cpr,moneda):'—'}</div></div>
-          <div class="obj-kpi"><div class="obj-kpi-label">Inversión</div><div class="obj-kpi-val">${fmoney(cur.spend,moneda)}</div></div>
-        </div>`;
+    const pct = (curr, prev, lowerBetter=false) => {
+      if(!prev||!curr||prev===0) return '';
+      const d = ((curr-prev)/prev)*100;
+      const good = lowerBetter ? d<0 : d>0;
+      return `<span style="color:${good?'var(--green)':'var(--red)'};font-size:10px;font-weight:700;margin-left:3px;">${d>0?'↑':'↓'}${Math.abs(d).toFixed(1)}%</span>`;
+    };
+
+    const chip = (label, val, delta='', color='', style='') =>
+      `<div class="obj-kpi"${style?` style="${style}"`:''}> 
+        <div class="obj-kpi-label">${label}</div>
+        <div class="obj-kpi-val"${color?` style="color:${color}"`:''}>${val}${delta}</div>
+      </div>`;
+    const chip7d = (label, val, delta='', color='') =>
+      `<div class="obj-kpi obj-kpi-7d">
+        <div class="obj-kpi-label">${label}</div>
+        <div class="obj-kpi-val"${color?` style="color:${color}"`:''}>${val}${delta}</div>
+      </div>`;
+    const chipM2 = (label, val, delta='', color='') =>
+      `<div class="obj-kpi obj-kpi-m2">
+        <div class="obj-kpi-label">${label}</div>
+        <div class="obj-kpi-val"${color?` style="color:${color}"`:''}>${val}${delta}</div>
+      </div>`;
+
+    const og = (optimizationGoal||'').toUpperCase();
+
+    // ── Clasificación: el optimization_goal SIEMPRE manda sobre el obj de campaña ──
+    const ogKnown       = og && og!=='NONE' && og!=='';
+    const isVentasByOg  = ['OFFSITE_CONVERSIONS','VALUE','MESSAGING_PURCHASE_CONVERSION'].includes(og);
+    const isConvByOg    = ['CONVERSATIONS','REPLIES','MESSAGING_APPOINTMENT_CONVERSION','LEAD_GENERATION_MESSAGING'].includes(og);
+    const isLeadByOg    = ['LEAD_GENERATION','QUALITY_LEAD'].includes(og);
+    const isLpvByOg     = og==='LANDING_PAGE_VIEWS';
+    const isProfileByOg = og==='PROFILE_VISIT';
+    const isReachByOg   = ['REACH','BRAND_AWARENESS','DAILY_UNIQUE_REACH'].includes(og);
+    const isThruplayByOg= ['THRUPLAY','TWO_SECOND_CONTINUOUS_VIDEO_VIEWS'].includes(og);
+    const isLinkByOg    = og==='LINK_CLICKS';
+    const isImpByOg     = og==='IMPRESSIONS';
+    const isLeadsByObj  = obj==='leads';
+    const isMensajesByObj=obj==='mensajes';
+    const isReconByObj  = obj==='reconocimiento';
+    const isVideoByObj  = obj==='video';
+
+    // Si og es conocido, úsalo como clasificador principal
+    // Si og es vacío/desconocido, fallback al obj de campaña
+    const isVentas      = ogKnown ? isVentasByOg : (obj==='ventas'||obj==='ventas_leads');
+    const isConv        = ogKnown ? (isConvByOg && !isVentasByOg) : (isMensajesByObj||obj==='interaccion');
+    const isLead        = ogKnown ? (isLeadByOg && !isVentasByOg && !isConvByOg) : (isLeadsByObj && !isConvByOg);
+    const isThruplay    = ogKnown ? isThruplayByOg : isVideoByObj;
+    const isReach       = ogKnown ? isReachByOg : (isReconByObj && !isThruplayByOg);
+    const isImpressions = ogKnown ? isImpByOg : false;
+    const isLinkClicks  = ogKnown ? (isLinkByOg && !isVentasByOg) : (obj==='trafico' && !isLpvByOg && !isProfileByOg);
+    const isRecon       = isReconByObj;
+    // LPV: Landing Page Views como KPI principal
+    const isLpv         = !isVentas && !isConv && !isLead && isLpvByOg;
+    // Visitas al perfil
+    const isProfile     = !isVentas && !isConv && !isLead && !isLpv && isProfileByOg;
+    const rl = cur.rl || meta.kpiLabel || 'Resultados';
+
+    // ── 3 filas de chips: Mes | 7D | vs Mes Anterior ──
+    let chipsM='', chips7D='', chipsM2='';
+
+    if(isThruplay){
+      chipsM =
+        chip('ThruPlays (Mes)', fn(m1?.thruplay||0)) +
+        chip('Costo x ThruPlay', m1?.cpr>0?fmoney(m1.cpr,moneda):'—') +
+        chip('CPM', fmoney(m1?.cpm||0,moneda)) +
+        chip('Inversión (Mes)', fmoney(m1?.spend||0,moneda));
+      if(w1) chips7D =
+        chip7d('7D · ThruPlays', fn(w1.thruplay||0), pct(w1.thruplay, w2?.thruplay)) +
+        chip7d('7D · Costo x ThruPlay', w1.cpr>0?fmoney(w1.cpr,moneda):'—', pct(w1.cpr, w2?.cpr, true)) +
+        chip7d('7D · CPM', fmoney(w1.cpm||0,moneda), pct(w1.cpm, w2?.cpm, true)) +
+        chip7d('7D · Inversión', fmoney(w1.spend||0,moneda), pct(w1.spend, w2?.spend, true));
+      {const z=m2||{thruplay:0,cpr:0,cpm:0,spend:0};
+      chipsM2 =
+        chipM2('ThruPlays · Mes ant', fn(z.thruplay||0), pct(m1?.thruplay, z.thruplay)) +
+        chipM2('Costo x ThruPlay · Ant', z.cpr>0?fmoney(z.cpr,moneda):'$0', pct(m1?.cpr, z.cpr, true)) +
+        chipM2('CPM · Mes ant', fmoney(z.cpm||0,moneda), pct(m1?.cpm, z.cpm, true)) +
+        chipM2('Inversión · Mes ant', fmoney(z.spend||0,moneda), pct(m1?.spend, z.spend, true));}
+    } else if(isVentas){
+      const roasColor = m1?.roas>=2?'var(--green)':m1?.roas>=1?'var(--yellow)':'var(--red)';
+      const ratioColor = m1?.invFact<=15?'var(--green)':m1?.invFact<=20?'var(--yellow)':'var(--red)';
+      chipsM =
+        chip('Compras (Mes)', fn(m1?.purchases||m1?.result||0)) +
+        chip('Costo x Compra', m1?.cpr>0?fmoney(m1.cpr,moneda):'—') +
+        chip('ROAS', m1?.roas?`${m1.roas.toFixed(2)}x`:'—', '', roasColor) +
+        chip('Inv/Fact', m1?.invFact?`${m1.invFact.toFixed(1)}%`:'—', '', ratioColor) +
+        chip('Inversión (Mes)', fmoney(m1?.spend||0,moneda));
+      if(w1) chips7D =
+        chip7d('7D · Compras', fn(w1.purchases||w1.result||0), pct(w1.purchases||w1.result, w2?.purchases||w2?.result)) +
+        chip7d('7D · Costo x Compra', w1.cpr>0?fmoney(w1.cpr,moneda):'—', pct(w1.cpr, w2?.cpr, true)) +
+        chip7d('7D · ROAS', w1.roas?`${w1.roas.toFixed(2)}x`:'—', '', w1.roas>=2?'var(--green)':w1.roas>=1?'var(--yellow)':'var(--red)') +
+        chip7d('7D · Inv/Fact', w1.invFact?`${w1.invFact.toFixed(1)}%`:'—', '', w1.invFact<=15?'var(--green)':w1.invFact<=20?'var(--yellow)':'var(--red)') +
+        chip7d('7D · Inversión', fmoney(w1.spend||0,moneda));
+      {const z=m2||{purchases:0,result:0,cpr:0,roas:null,invFact:null,spend:0};
+      chipsM2 =
+        chipM2('Compras · Mes ant', fn(z.purchases||z.result||0), pct(m1?.purchases||m1?.result, z.purchases||z.result)) +
+        chipM2('Costo x Compra · Ant', z.cpr>0?fmoney(z.cpr,moneda):'$0', pct(m1?.cpr, z.cpr, true)) +
+        chipM2('ROAS · Mes ant', z.roas?`${z.roas.toFixed(2)}x`:'0x', pct(m1?.roas, z.roas)) +
+        chipM2('Inv/Fact · Mes ant', z.invFact?`${z.invFact.toFixed(1)}%`:'0%', pct(m1?.invFact, z.invFact, true)) +
+        chipM2('Inversión · Mes ant', fmoney(z.spend||0,moneda), pct(m1?.spend, z.spend, true));}
+    } else if(isReach||(isRecon&&!isImpressions)){
+      const freqColor = m1?.freq>=5?'var(--red)':m1?.freq>=3.5?'var(--yellow)':'var(--green)';
+      chipsM =
+        chip('Alcance (Mes)', fn(m1?.reach||0)) +
+        chip('CPM', fmoney(m1?.cpm||0,moneda)) +
+        chip('Frecuencia', m1?.freq?.toFixed(1)||'—', '', freqColor) +
+        chip('Inversión (Mes)', fmoney(m1?.spend||0,moneda));
+      if(w1) chips7D =
+        chip7d('7D · Alcance', fn(w1.reach||0), pct(w1.reach, w2?.reach)) +
+        chip7d('7D · CPM', fmoney(w1.cpm||0,moneda), pct(w1.cpm, w2?.cpm, true)) +
+        chip7d('7D · Frecuencia', w1.freq?.toFixed(1)||'—', '', w1.freq>=5?'var(--red)':w1.freq>=3.5?'var(--yellow)':'var(--green)') +
+        chip7d('7D · Inversión', fmoney(w1.spend||0,moneda), pct(w1.spend, w2?.spend, true));
+      {const z=m2||{reach:0,cpm:0,freq:0,spend:0};
+      chipsM2 =
+        chipM2('Alcance · Mes ant', fn(z.reach||0), pct(m1?.reach, z.reach)) +
+        chipM2('CPM · Mes ant', fmoney(z.cpm||0,moneda), pct(m1?.cpm, z.cpm, true)) +
+        chipM2('Frecuencia · Mes ant', z.freq?.toFixed(1)||'0') +
+        chipM2('Inversión · Mes ant', fmoney(z.spend||0,moneda), pct(m1?.spend, z.spend, true));}
+    } else if(isLinkClicks){
+      const ctrColor = m1?.ctr>=1?'var(--green)':m1?.ctr>=0.5?'var(--yellow)':'var(--red)';
+      chipsM =
+        chip('Clics (Mes)', fn(m1?.clicks||0)) +
+        chip('CTR', `${m1?.ctr?.toFixed(2)||'0'}%`, '', ctrColor) +
+        chip('Costo x Clic', fmoney(m1?.cpc||0,moneda)) +
+        chip('Inversión (Mes)', fmoney(m1?.spend||0,moneda));
+      if(w1) chips7D =
+        chip7d('7D · Clics', fn(w1.clicks||0), pct(w1.clicks, w2?.clicks)) +
+        chip7d('7D · CTR', `${w1.ctr?.toFixed(2)||'0'}%`, pct(w1.ctr, w2?.ctr), w1.ctr>=1?'var(--green)':w1.ctr>=0.5?'var(--yellow)':'var(--red)') +
+        chip7d('7D · Costo x Clic', fmoney(w1.cpc||0,moneda), pct(w1.cpc, w2?.cpc, true)) +
+        chip7d('7D · Inversión', fmoney(w1.spend||0,moneda), pct(w1.spend, w2?.spend, true));
+      {const z=m2||{clicks:0,ctr:0,cpc:0,spend:0};
+      chipsM2 =
+        chipM2('Clics · Mes ant', fn(z.clicks||0), pct(m1?.clicks, z.clicks)) +
+        chipM2('CTR · Mes ant', `${z.ctr?.toFixed(2)||'0'}%`, pct(m1?.ctr, z.ctr)) +
+        chipM2('Costo x Clic · Ant', fmoney(z.cpc||0,moneda), pct(m1?.cpc, z.cpc, true)) +
+        chipM2('Inversión · Mes ant', fmoney(z.spend||0,moneda), pct(m1?.spend, z.spend, true));}
+    } else if(isConv){
+      // Conversaciones / mensajes — og: CONVERSATIONS, REPLIES, etc.
+      const convRl = m1?.rl||'Conversaciones';
+      chipsM =
+        chip(`${convRl} (Mes)`, fn(m1?.result||0)) +
+        chip(`Costo x ${convRl}`, m1?.cpr>0?fmoney(m1.cpr,moneda):'—') +
+        chip('Inversión (Mes)', fmoney(m1?.spend||0,moneda));
+      if(w1) chips7D =
+        chip7d(`7D · ${w1.rl||convRl}`, fn(w1.result||0), pct(w1.result, w2?.result)) +
+        chip7d(`7D · Costo x ${w1.rl||convRl}`, w1.cpr>0?fmoney(w1.cpr,moneda):'—', pct(w1.cpr, w2?.cpr, true)) +
+        chip7d('7D · Inversión', fmoney(w1.spend||0,moneda), pct(w1.spend, w2?.spend, true));
+      {const z=m2||{result:0,rl:'',cpr:0,spend:0};
+      chipsM2 =
+        chipM2(`${z.rl||convRl} · Mes ant`, fn(z.result||0), pct(m1?.result, z.result)) +
+        chipM2(`Costo x ${z.rl||convRl} · Ant`, z.cpr>0?fmoney(z.cpr,moneda):'$0', pct(m1?.cpr, z.cpr, true)) +
+        chipM2('Inversión · Mes ant', fmoney(z.spend||0,moneda), pct(m1?.spend, z.spend, true));}
+    } else if(isLead){
+      // Leads puros — og: LEAD_GENERATION, QUALITY_LEAD
+      const leadRl = m1?.rl||'Leads';
+      chipsM =
+        chip(`${leadRl} (Mes)`, fn(m1?.result||0)) +
+        chip(`Costo x ${leadRl}`, m1?.cpr>0?fmoney(m1.cpr,moneda):'—') +
+        chip('Inversión (Mes)', fmoney(m1?.spend||0,moneda));
+      if(w1) chips7D =
+        chip7d(`7D · ${w1.rl||leadRl}`, fn(w1.result||0), pct(w1.result, w2?.result)) +
+        chip7d(`7D · Costo x ${w1.rl||leadRl}`, w1.cpr>0?fmoney(w1.cpr,moneda):'—', pct(w1.cpr, w2?.cpr, true)) +
+        chip7d('7D · Inversión', fmoney(w1.spend||0,moneda), pct(w1.spend, w2?.spend, true));
+      {const z=m2||{result:0,rl:'',cpr:0,spend:0};
+      chipsM2 =
+        chipM2(`${z.rl||leadRl} · Mes ant`, fn(z.result||0), pct(m1?.result, z.result)) +
+        chipM2(`Costo x ${z.rl||leadRl} · Ant`, z.cpr>0?fmoney(z.cpr,moneda):'$0', pct(m1?.cpr, z.cpr, true)) +
+        chipM2('Inversión · Mes ant', fmoney(z.spend||0,moneda), pct(m1?.spend, z.spend, true));}
+    } else if(isLpv){
+      // Landing page views — og: LANDING_PAGE_VIEWS
+      chipsM =
+        chip('Visitas Landing (Mes)', fn(m1?.result||m1?.lpv||0)) +
+        chip('Costo x Visita', m1?.cpr>0?fmoney(m1.cpr,moneda):'—') +
+        chip('CTR', `${m1?.ctr?.toFixed(2)||'0'}%`, '', m1?.ctr>=1?'var(--green)':m1?.ctr>=0.5?'var(--yellow)':'var(--red)') +
+        chip('Inversión (Mes)', fmoney(m1?.spend||0,moneda));
+      if(w1) chips7D =
+        chip7d('7D · Visitas Landing', fn(w1.result||w1.lpv||0), pct(w1.result||w1.lpv, w2?.result||w2?.lpv)) +
+        chip7d('7D · Costo x Visita', w1.cpr>0?fmoney(w1.cpr,moneda):'—', pct(w1.cpr, w2?.cpr, true)) +
+        chip7d('7D · CTR', `${w1.ctr?.toFixed(2)||'0'}%`, pct(w1.ctr, w2?.ctr), w1.ctr>=1?'var(--green)':w1.ctr>=0.5?'var(--yellow)':'var(--red)') +
+        chip7d('7D · Inversión', fmoney(w1.spend||0,moneda), pct(w1.spend, w2?.spend, true));
+      {const z=m2||{result:0,lpv:0,cpr:0,ctr:0,spend:0};
+      chipsM2 =
+        chipM2('Visitas Landing · Mes ant', fn(z.result||z.lpv||0), pct(m1?.result||m1?.lpv, z.result||z.lpv)) +
+        chipM2('Costo x Visita · Ant', z.cpr>0?fmoney(z.cpr,moneda):'$0', pct(m1?.cpr, z.cpr, true)) +
+        chipM2('CTR · Mes ant', `${z.ctr?.toFixed(2)||'0'}%`, pct(m1?.ctr, z.ctr)) +
+        chipM2('Inversión · Mes ant', fmoney(z.spend||0,moneda), pct(m1?.spend, z.spend, true));}
+    } else if(isProfile){
+      // Visitas al perfil — og: PROFILE_VISIT
+      chipsM =
+        chip('Visitas Perfil (Mes)', fn(m1?.result||m1?.profileVisit||0)) +
+        chip('Costo x Visita', m1?.cpr>0?fmoney(m1.cpr,moneda):'—') +
+        chip('Inversión (Mes)', fmoney(m1?.spend||0,moneda));
+      if(w1) chips7D =
+        chip7d('7D · Visitas Perfil', fn(w1.result||w1.profileVisit||0), pct(w1.result||w1.profileVisit, w2?.result||w2?.profileVisit)) +
+        chip7d('7D · Costo x Visita', w1.cpr>0?fmoney(w1.cpr,moneda):'—', pct(w1.cpr, w2?.cpr, true)) +
+        chip7d('7D · Inversión', fmoney(w1.spend||0,moneda), pct(w1.spend, w2?.spend, true));
+      {const z=m2||{result:0,profileVisit:0,cpr:0,spend:0};
+      chipsM2 =
+        chipM2('Visitas Perfil · Mes ant', fn(z.result||z.profileVisit||0), pct(m1?.result||m1?.profileVisit, z.result||z.profileVisit)) +
+        chipM2('Costo x Visita · Ant', z.cpr>0?fmoney(z.cpr,moneda):'$0', pct(m1?.cpr, z.cpr, true)) +
+        chipM2('Inversión · Mes ant', fmoney(z.spend||0,moneda), pct(m1?.spend, z.spend, true));}
+    } else {
+      // Fallback genérico — usa rl de extract() que ya leyó el og correctamente
+      chipsM =
+        chip(`${rl} (Mes)`, fn(m1?.result||0)) +
+        chip(`Costo x ${rl}`, m1?.cpr>0?fmoney(m1.cpr,moneda):'—') +
+        chip('Inversión (Mes)', fmoney(m1?.spend||0,moneda));
+      if(w1) chips7D =
+        chip7d(`7D · ${w1.rl||rl}`, fn(w1.result||0), pct(w1.result, w2?.result)) +
+        chip7d(`7D · Costo x ${w1.rl||rl}`, w1.cpr>0?fmoney(w1.cpr,moneda):'—', pct(w1.cpr, w2?.cpr, true)) +
+        chip7d('7D · Inversión', fmoney(w1.spend||0,moneda), pct(w1.spend, w2?.spend, true));
+      {const z=m2||{result:0,rl:'',cpr:0,spend:0};
+      chipsM2 =
+        chipM2(`${z.rl||rl} · Mes ant`, fn(z.result||0), pct(m1?.result, z.result)) +
+        chipM2(`Costo x ${z.rl||rl} · Ant`, z.cpr>0?fmoney(z.cpr,moneda):'$0', pct(m1?.cpr, z.cpr, true)) +
+        chipM2('Inversión · Mes ant', fmoney(z.spend||0,moneda), pct(m1?.spend, z.spend, true));}
     }
 
-    // Alerta de mala configuración — PRIORIDAD #1
-    const badConfigHtml = badConfig ? `
-      <div class="obj-badconfig">
-        <span style="font-size:13px;font-weight:600;">${badConfig.msg}</span>
-      </div>` : '';
-
-    // Diagnósticos del bloque — mensual primero, luego semanal
-    const diagHtmlFor = (d) => `
-      <div class="obj-diag obj-diag-${d.type}">
-        <span style="font-weight:600;font-size:12px;">${d.title}</span>
-        <span style="font-size:11px;color:var(--muted);margin-left:8px;">${d.detail}</span>
+    // ── CAJA 2: ratio/ROAS para ventas, sparkline para el resto ──
+    let kpiBox2 = '';
+    const sparkHtml = dailyData?.length
+      ? `<div class="bcard" style="padding:0 0 8px;">${renderSparkline(dailyData, obj, og, moneda)}</div>`
+      : '';
+    if(isVentas && m1?.invFact>0){
+      const r=m1.invFact; const col=r<=15?'var(--green)':r<=20?'var(--yellow)':'var(--red)';
+      const lbl=r<=10?'PERFECTO':r<=15?'SALUDABLE':r<=20?'ATENCIÓN':'PROBLEMA';
+      const bc=r<=15?'pbg':r<=20?'pby':'pbr';
+      kpiBox2=`<div class="bcard">
+        <div class="blabel">Ratio Inversión / Facturación</div>
+        <div class="bnums"><div class="bmain" style="color:${col}">${r.toFixed(1)}%</div><div class="bsub" style="color:${col};font-family:var(--font-display);font-weight:700;font-size:11px;letter-spacing:1px;text-transform:uppercase;">${lbl}</div></div>
+        <div class="pw"><div class="pb ${bc}" style="width:${Math.min(r/25*100,100)}%"></div></div>
+        <div class="bdet"><span>✓≤10% perfecto · ✓≤15% ok · ⚡15–20% atención · ⚠>20% problema</span></div>
+        <div style="margin-top:8px;font-size:11px;color:var(--muted)">ROAS: <strong style="color:var(--navy)">${m1.roas?.toFixed(2)||'—'}x</strong> · Ventas: <strong style="color:var(--navy)">${fmoney(m1.rv||0,moneda)}</strong></div>
       </div>`;
+    }
+
+    // ── CAJA 1: vacía (presupuesto se muestra una sola vez arriba de todos los bloques)
+    let invBox = '';
+
+    // ── DIAGNÓSTICOS ──
+    const diagHtmlFor = (d) => `<div class="obj-diag obj-diag-${d.type}">
+      <span style="font-weight:600;font-size:12px;">${d.title}</span>
+      <span style="font-size:11px;color:var(--muted);margin-left:8px;">${d.detail}</span>
+    </div>`;
     const diagM = b.diagM||b.diag;
     const diagW = b.diagW;
     const diagHtml = [
@@ -1960,19 +2610,26 @@ function renderObjBlocks(blocks, acc){
         </div>`)
     ].join('');
 
+    const badConfigHtml = badConfig?`<div class="obj-badconfig"><span style="font-size:13px;font-weight:600;">${badConfig.msg}</span></div>`:'';
+    // Título = objetivo de campaña (parentLabel), subtítulo = optimization_goal (label)
+    const ogSubtitle = og&&og!=='NONE'&&meta.label&&meta.label!==meta.parentLabel
+      ? `<span style="font-size:10px;color:var(--muted);margin-left:6px;font-weight:400;text-transform:none;">· ${meta.label}</span>`:'';
+
     return `<div class="obj-block">
       <div class="obj-block-header">
         <span class="obj-block-icon">${meta.icon}</span>
-        <span class="obj-block-label">${meta.label}</span>
+        <span class="obj-block-label">${meta.parentLabel}${ogSubtitle}</span>
         <span class="obj-block-count">${campaignCount} campaña${campaignCount!==1?'s':''}</span>
       </div>
       ${badConfigHtml}
-      ${kpiHtml}
+      <div class="obj-kpis">${chipsM}</div>
+      ${chips7D?`<div class="obj-kpis">${chips7D}</div>`:''}
+      ${chipsM2?`<div class="obj-kpis">${chipsM2}</div>`:''}
+      ${(kpiBox2||sparkHtml)?`<div class="bgrid" style="margin:12px 0 4px;">${kpiBox2||(!isVentas?sparkHtml:'')}</div>`:''}
       ${diagHtml}
     </div>`;
   }).join('');
 }
-
 function exportHTML(){const b=new Blob([document.documentElement.outerHTML],{type:'text/html'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`pochoclo-auditoria-${new Date().toISOString().split('T')[0]}.html`;a.click();}
 
 // ── PASSWORD ──
@@ -2004,6 +2661,20 @@ function initApp(){
 
 
 // ── PERFIL DE CLIENTE ──
+// ── FILTRO AUTOMÁTICO PARA CUENTAS COMPARTIDAS ──
+const SHARED_FILTER_MAP = {
+  'universidad del cine': 'UCINE',
+  'plumari - estereo color': 'ESTEREO',
+  'plumari ecommerce': 'ECOMMERCE',
+};
+function getAutoSharedFilter(acc){
+  if(!acc.isShared) return null;
+  const key = (acc.cliente||'').toLowerCase().trim();
+  if(SHARED_FILTER_MAP[key]) return SHARED_FILTER_MAP[key];
+  // Default: primera palabra del nombre del cliente en mayúsculas
+  return acc.cliente.split(/[\s\-_]/)[0].toUpperCase();
+}
+
 // ── FILTRO DE CAMPAÑA (independiente del perfil) ──
 function getCampFilterKey(acc){ return 'pm_cf_' + (acc.isShared?(acc.cliente+'_'+acc.cuentaPub):(acc.cuentaPub||acc.cliente)).replace(/[^a-z0-9]/gi,'_'); }
 function getCampFilter(acc){ try{ return localStorage.getItem(getCampFilterKey(acc))||''; }catch(e){ return ''; } }
@@ -2066,8 +2737,10 @@ async function fetchHistorial(acc){
     if(cached){
       const parsed = JSON.parse(cached);
       const age = (Date.now() - parsed.ts) / 1000 / 3600;
-      const hasRealData = parsed.data && parsed.data.some(h=>h.data&&h.data.spend>0);
-      if(age < 24 && hasRealData) return parsed.data;
+      const hasRealData = parsed.data && parsed.data.some(h=>h.data&&parseFloat(h.data.spend)>0);
+      // Para cuentas compartidas, invalidar caché si no tiene el flag de filtrado por objetivo
+      const isFiltered = parsed.filteredByObj === true;
+      if(age < 24 && hasRealData && (!acc.isShared || isFiltered)) return parsed.data;
     }
   }catch(e){}
 
@@ -2085,15 +2758,17 @@ async function fetchHistorial(acc){
       months.push({desde, hasta, label, isCurrent: isCurrentMonth});
     }
     const results = await Promise.all(months.map(async m => {
-      const cf = getCampFilter(acc) || null;
       const objH = acc.objetivo;
+      const cf = getCampFilter(acc) || getAutoSharedFilter(acc) || null;
       const raw = await fetchIns(acc.cuentaPub, m.desde, m.hasta, cf);
       const ex = extract(raw, objH);
       return { label: m.label, isCurrent: m.isCurrent, desde: m.desde, hasta: m.hasta, data: ex };
     }));
-    try{ localStorage.setItem(getHistorialCacheKey(acc), JSON.stringify({data: results, ts: Date.now()})); }catch(e){}
+    const hasData = results.some(r=>r.data&&parseFloat(r.data.spend)>0);
+    if(hasData) try{ localStorage.setItem(getHistorialCacheKey(acc), JSON.stringify({data: results, ts: Date.now(), filteredByObj: acc.isShared===true})); }catch(e){}
     return results;
   }catch(e){
+    console.error('[HISTORIAL ERROR]', acc.cliente, e);
     return null;
   }
 }
@@ -2185,10 +2860,10 @@ function cerebro(acc, w1, w2, m1, m2, wD, mD, historial, perfil, objBlocks=[]){
   let analisisHistorial = null;
 
   if(historial && historial.length >= 2){
-    const validMonths = historial.filter(h=>h.data && h.data.spend>0);
+    const validMonths = historial.filter(h=>h.data && parseFloat(h.data.spend)>0);
     if(validMonths.length >= 2){
-      const spends = validMonths.map(h=>h.data.spend);
-      const cprs = validMonths.map(h=>h.data.cpr||0).filter(v=>v>0);
+      const spends = validMonths.map(h=>parseFloat(h.data.spend)||0);
+      const cprs = validMonths.map(h=>parseFloat(h.data.cpr)||0).filter(v=>v>0);
       const ctrs = validMonths.map(h=>h.data.ctr||0);
       const cpms = validMonths.map(h=>h.data.cpm||0);
       const freqs = validMonths.map(h=>h.data.freq||0);
@@ -2282,7 +2957,7 @@ function cerebro(acc, w1, w2, m1, m2, wD, mD, historial, perfil, objBlocks=[]){
 
       tendencia = {
         meses: validMonths.map(h=>h.label),
-        spends: validMonths.map(h=>h.data.spend),
+        spends: validMonths.map(h=>parseFloat(h.data.spend)||0),
         cprs: validMonths.map(h=>h.data.cpr||0),
         results: validMonths.map(h=>h.data.result||0),
         freqs: validMonths.map(h=>h.data.freq||0),
@@ -2441,32 +3116,22 @@ function renderCerebro(el, r, acc, historial){
 
   // Historial gráfico
   if(r.tendencia && r.tendencia.spends.length >= 2){
-    const maxSpend = Math.max(...r.tendencia.spends);
-    const bars = r.tendencia.spends.map((s,i)=>{
-      const pct = maxSpend>0?(s/maxSpend)*100:0;
-      return `<div class="hist-bar" title="${r.tendencia.meses[i]}: ${fmoney(s,acc.moneda)}">
-        <div class="hist-bar-fill" style="height:${pct}%"></div>
+    const histRows = r.tendencia.meses.map((mes,i)=>{
+      const s = r.tendencia.spends[i];
+      const prev = i>0?r.tendencia.spends[i-1]:null;
+      const delta = prev&&prev>0?((s-prev)/prev)*100:null;
+      const deltaHtml = delta!==null?`<span style="font-size:10px;font-weight:600;color:${delta>=0?'var(--green)':'var(--red)'};margin-left:6px;">${delta>=0?'↑':'↓'}${Math.abs(delta).toFixed(1)}%</span>`:'';
+      const isCurrent = i===r.tendencia.meses.length-1;
+      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);${isCurrent?'font-weight:700;':''}">
+        <span style="font-size:12px;color:${isCurrent?'var(--navy)':'var(--muted)'};min-width:90px;">${mes}</span>
+        <span style="font-size:12px;font-family:var(--font-display);color:var(--navy);">${fmoney(s,acc.moneda)}${deltaHtml}</span>
       </div>`;
     }).join('');
-    const labels = r.tendencia.meses.map(m=>`<span style="font-size:9px;color:var(--muted2);flex:1;text-align:center;">${m}</span>`).join('');
     html += `<div class="ai-section">
       <div class="ai-section-title">Historial 6 Meses · Inversión</div>
-      <div class="hist-chart">${bars}</div>
-      <div style="display:flex;gap:3px;margin-top:2px;">${labels}</div>
-      ${r.tendencia.trendMsg?`<div style="font-size:11px;color:var(--muted);margin-top:6px;">📈 ${r.tendencia.trendMsg}</div>`:''}
+      <div style="margin-top:4px;">${histRows}</div>
+      ${r.tendencia.trendMsg?`<div style="font-size:11px;color:var(--muted);margin-top:8px;">📈 ${r.tendencia.trendMsg}</div>`:''}
     </div>`;
-  } else {
-    // Sin historial útil — limpiar caché viejo y reintentar automáticamente
-    html += `<div class="ai-section" style="display:flex;align-items:center;gap:10px;padding:10px 0;">
-      <div style="font-size:12px;color:var(--muted);">Cargando historial de inversión...</div>
-    </div>`;
-    // Limpiar caché viejo automáticamente si el historial tiene datos pero todos en 0
-    setTimeout(()=>{
-      const key = getHistorialCacheKey(acc);
-      try{ localStorage.removeItem(key); }catch(e){}
-      const rRef = window._lastResults?.find(x=>x.acc?.cuentaPub===acc.cuentaPub);
-      if(rRef && !r.tendencia) generateAIConclusion(rRef);
-    }, 500);
   }
 
   // Diagnóstico ejecutivo
