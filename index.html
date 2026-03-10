@@ -1579,7 +1579,38 @@ function extract(raw, obj, optimizationGoal=''){
   const apiCprVal   = apiCostPerResult.length>0 ? n((apiCostPerResult[0].values||[{}])[0].value||apiCostPerResult[0].value||0) : 0;
   const apiResultLabel = apiResults.length>0 ? (apiResults[0].indicator||'') : '';
 
-  // Determinar resultado y label según optimization_goal primero, luego fallback por objetivo
+  // ── MAPA indicator → label legible ──
+  const INDICATOR_LABEL = {
+    'profile_visit_view':                    'Visitas al perfil',
+    'visit_instagram_profile':               'Visitas al perfil',
+    'video_thruplay_watched_actions':        'ThruPlays',
+    'link_click':                            'Clics en enlace',
+    'landing_page_view':                     'Visitas landing',
+    'lead':                                  'Leads',
+    'offsite_conversion.fb_pixel_lead':      'Leads',
+    'onsite_conversion.lead_grouped':        'Leads',
+    'purchase':                              'Compras',
+    'offsite_conversion.fb_pixel_purchase':  'Compras',
+    'messaging_conversation_started_7d':     'Conversaciones',
+    'onsite_conversion.total_messaging_connection': 'Conversaciones',
+    'post_engagement':                       'Interacciones',
+    'reach':                                 'Alcance',
+    'impressions':                           'Impresiones',
+    'two_second_continuous_video_views':     'Reproducc. 2s',
+    'complete_registration':                 'Registros',
+  };
+
+  // ── FUENTE PRIMARIA: si la API devuelve results con valor, usarlo directamente ──
+  if(apiResultVal > 0){
+    result = apiResultVal;
+    cpr    = apiCprVal > 0 ? apiCprVal : (result > 0 ? spend / result : 0);
+    rl     = INDICATOR_LABEL[apiResultLabel] || INDICATOR_LABEL[apiResultLabel.toLowerCase()] || apiResultLabel || 'Resultado';
+    // Para compras también capturar valor de conversión
+    if(apiResultLabel.includes('purchase')) rv = purchaseVal;
+  }
+
+  // Fallback: si la API no devolvió results, inferir por og/objetivo
+  if(result===0){
   if(og==='CONVERSATIONS'||og==='REPLIES'||og==='MESSAGING_PURCHASE_CONVERSION'){
     result=msgs>0?msgs:0; rl='Conversaciones'; cpr=result>0?spend/result:0;
   } else if(og==='LEAD_GENERATION'||og==='QUALITY_LEAD'){
@@ -1622,15 +1653,7 @@ function extract(raw, obj, optimizationGoal=''){
     else if(useObj==='reconocimiento'){result=reach;rl='Alcance';}
     else{rl='—';}
   }
-  // Si la API devolvió results directos, tienen prioridad (son los mismos que Ads Manager)
-  if(apiResultVal>0 && result===0){
-    result=apiResultVal;
-    cpr=apiCprVal>0?apiCprVal:cpr;
-    if(!rl) rl=apiResultLabel||'Resultados';
-  } else if(apiResultVal>0 && apiCprVal>0){
-    // Corregir cpr con el valor oficial de la API
-    cpr=apiCprVal;
-  }
+  } // fin fallback if(result===0)
   const extraLeads=obj==='ventas_leads'?leads:0;
   const invFact=(useObj==='ventas'&&rv>0&&spend>0)?(spend/rv)*100:null;
   const roas=(rv>0&&spend>0)?rv/spend:null;
