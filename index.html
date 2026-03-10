@@ -1150,14 +1150,12 @@ async function fetchCampaigns(accountId, since, until, campaignFilter=null){
   const data=insightJson.data||[];
   if(!data.length) return [];
 
-  // Normalizar optimization_goal — viene directo de la API, no hace falta fetch de adsets
-  for(const d of data){
+  // Filtrar adsets sin datos (pausados/inactivos en el período)
+  const activeData = data.filter(d=>parseInt(d.impressions||0)>0);
+  // Normalizar optimization_goal — viene directo de la API
+  for(const d of activeData){
     d.optimization_goal = normalizeOg(d.optimization_goal||'');
   }
-
-  // Guardar JSON crudo para diagnóstico — botón en el auditor lo muestra
-  window._lastApiJson = data;
-
   // Debug panel
   const debugEl=document.getElementById('debugOptGoal');
   if(debugEl){
@@ -1180,7 +1178,7 @@ async function fetchCampaigns(accountId, since, until, campaignFilter=null){
       </table></div>`;
     debugEl.style.display='block';
   }
-  return data;
+  return activeData;
 }
 
 // Fetch datos diarios del mes para mini gráfico evolutivo
@@ -1564,21 +1562,22 @@ function extract(raw, obj, optimizationGoal=''){
   const ic=fA(acts,['initiate_checkout','offsite_conversion.fb_pixel_initiate_checkout']);
   const lpv=fA(acts,['landing_page_view','omni_landing_page_view']);
   const profileVisit=fA(acts,['onsite_conversion.profile_visit','profile_visit','instagram_profile_visit']);
-  // ThruPlay: viene como array igual que actions
+  // ThruPlay: campo directo — video_thruplay_watched_actions[0].value (confirmado JSON)
   const thruplayArr = raw.video_thruplay_watched_actions||[];
-  const thruplayDirect = thruplayArr.length>0 ? parseInt(thruplayArr.reduce((s,v)=>s+parseFloat(v.value||0),0)) : 0;
-  const thruplay = thruplayDirect > 0 ? thruplayDirect : fA(acts,['video_thruplay_watched_actions','video_p100_watched_actions']);
+  const thruplayDirect = thruplayArr.length>0 ? ii(thruplayArr[0].value||0) : 0;
+  const thruplay = thruplayDirect > 0 ? thruplayDirect : fA(acts,['video_thruplay_watched_actions']);
   const engagementActs=fA(acts,['post_engagement','page_engagement','post_reaction','post_like','comment']);
   let result=0,rl='',rv=0,cpr=0;
   const useObj=obj==='ventas_leads'?'ventas':obj;
   const og=(optimizationGoal||'').toUpperCase();
 
-  // ── FUENTE PRIMARIA: results y objective_results de la API ──
-  const apiResults = raw.results||raw.objective_results||[];
-  const apiCostPerResult = raw.cost_per_result||raw.cost_per_objective_result||[];
-  const apiResultVal = apiResults.length>0 ? n(apiResults[0].value||0) : 0;
-  const apiCprVal   = apiCostPerResult.length>0 ? n(apiCostPerResult[0].value||0) : 0;
-  const apiResultLabel = apiResults.length>0 ? (apiResults[0].indicator||apiResults[0].result_type||'') : '';
+  // ── FUENTE PRIMARIA: results de la API ──
+  // Estructura real: results[0].values[0].value (confirmado con JSON crudo)
+  const apiResults = raw.results||[];
+  const apiCostPerResult = raw.cost_per_result||[];
+  const apiResultVal = apiResults.length>0 ? n((apiResults[0].values||[{}])[0].value||apiResults[0].value||0) : 0;
+  const apiCprVal   = apiCostPerResult.length>0 ? n((apiCostPerResult[0].values||[{}])[0].value||apiCostPerResult[0].value||0) : 0;
+  const apiResultLabel = apiResults.length>0 ? (apiResults[0].indicator||'') : '';
 
   // Determinar resultado y label según optimization_goal primero, luego fallback por objetivo
   if(og==='CONVERSATIONS'||og==='REPLIES'||og==='MESSAGING_PURCHASE_CONVERSION'){
