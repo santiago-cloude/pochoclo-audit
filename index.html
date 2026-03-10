@@ -640,25 +640,7 @@
   </div>
 </div>
 
-<div id="debugOptGoal" style="display:none;position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:2px solid #1a3a5c;padding:12px 16px;max-height:280px;overflow-y:auto;z-index:9999;font-family:monospace;">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-    <b style="font-size:12px;color:#1a3a5c;">🔍 DEBUG · optimization_goal · results · cost_per_result</b>
-    <div style="display:flex;gap:8px;">
-      <button onclick="testRawFetch()" style="font-size:11px;padding:2px 10px;cursor:pointer;background:#1a3a5c;color:#fff;border:none;border-radius:4px;">📡 Ver JSON crudo</button>
-      <button onclick="this.closest('#debugOptGoal').style.display='none';" style="font-size:11px;padding:2px 8px;cursor:pointer;">✕</button>
-    </div>
-  </div>
-  <div id="debugRaw"></div>
-</div>
-<div id="jsonModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:10000;overflow:auto;padding:20px;">
-  <div style="background:#fff;max-width:960px;margin:0 auto;border-radius:8px;padding:20px;">
-    <div style="display:flex;justify-content:space-between;margin-bottom:12px;">
-      <b style="font-size:14px;color:#1a3a5c;">JSON crudo API · Insights nivel adset</b>
-      <button onclick="document.getElementById('jsonModal').style.display='none'" style="cursor:pointer;font-size:14px;padding:4px 12px;background:#dc2626;color:#fff;border:none;border-radius:4px;">✕ Cerrar</button>
-    </div>
-    <pre id="jsonContent" style="font-size:11px;overflow:auto;max-height:75vh;background:#f5f5f5;padding:12px;border-radius:4px;white-space:pre-wrap;word-break:break-all;"></pre>
-  </div>
-</div>
+
 <div class="loading-overlay" id="loadingOverlay">
   <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
     <div style="width:32px;height:32px;background:var(--orange);border-radius:8px;display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:800;font-size:11px;color:#fff;">PM</div>
@@ -1051,26 +1033,7 @@ function renderAccTable(){
 
 function safeId(s){ return s.replace(/[^a-z0-9]/gi,'_'); }
 
-async function testRawFetch(){
-  const debugRaw=document.getElementById('debugRaw');
-  if(!cfg.metaToken){debugRaw.innerHTML='<span style="color:red">Sin token configurado</span>';return;}
-  debugRaw.innerHTML='<span style="color:#888">Fetching...</span>';
-  const id='act_584167988769846';
-  const fields=['campaign_name','adset_name','objective','optimization_goal','spend','results','cost_per_result','video_thruplay_watched_actions','actions'].join(',');
-  const url=`https://graph.facebook.com/${cfg.metaVersion}/${id}/insights?fields=${fields}&time_range={"since":"2026-03-01","until":"2026-03-09"}&level=adset&access_token=${cfg.metaToken}`;
-  try{
-    const res=await fetch(url);
-    const json=await res.json();
-    const rows=(json.data||[json]).map(d=>`
-      <div style="border-bottom:1px solid #eee;padding:6px 0;font-size:10px;">
-        <b>${d.campaign_name||''}</b> | og:<b style="color:#1a3a5c">${d.optimization_goal||'VACÍO'}</b> | 
-        results:<b style="color:#16a34a">${JSON.stringify(d.results||'—')}</b> | 
-        cpr:<b>${JSON.stringify(d.cost_per_result||'—')}</b> |
-        thruplay:<b>${JSON.stringify(d.video_thruplay_watched_actions||'—')}</b>
-      </div>`).join('');
-    debugRaw.innerHTML=rows||JSON.stringify(json,null,2).slice(0,500);
-  }catch(e){debugRaw.innerHTML='<span style="color:red">Error: '+e.message+'</span>';}
-}
+
 function toggleSelectAll(cb){
   document.querySelectorAll('.acc-cb').forEach(c=>c.checked=cb.checked);
   updateSelectedCount();
@@ -1156,28 +1119,6 @@ async function fetchCampaigns(accountId, since, until, campaignFilter=null){
   for(const d of activeData){
     d.optimization_goal = normalizeOg(d.optimization_goal||'');
   }
-  // Debug panel
-  const debugEl=document.getElementById('debugOptGoal');
-  if(debugEl){
-    const rows=data.map(d=>`<tr>
-      <td style="padding:2px 8px;font-size:11px;">${(d.campaign_name||'').slice(0,35)}</td>
-      <td style="padding:2px 8px;font-size:11px;font-weight:700;color:${d.optimization_goal?'#1a3a5c':'#dc2626'};">${d.optimization_goal||'⚠️ VACÍO'}</td>
-      <td style="padding:2px 8px;font-size:11px;color:#888;">${d.objective||''}</td>
-      <td style="padding:2px 8px;font-size:11px;color:#16a34a;">${d.results?.[0]?.value||'—'} | CPR:$${d.cost_per_result?.[0]?.value||'—'}</td>
-      <td style="padding:2px 8px;font-size:11px;color:#7c3aed;">${(d.actions||[]).map(a=>a.action_type+':'+a.value).slice(0,3).join(' | ')}</td>
-    </tr>`).join('');
-    debugEl.innerHTML=`<div style="margin-bottom:6px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-        <b style="font-size:11px;color:#1a3a5c;">🔍 API Response · ${since}→${until}</b>
-        <button onclick="document.getElementById('jsonContent').textContent=JSON.stringify(window._lastApiJson,null,2);document.getElementById('jsonModal').style.display='block';" 
-          style="font-size:11px;padding:3px 10px;background:#1a3a5c;color:#fff;border:none;border-radius:4px;cursor:pointer;">Ver JSON completo</button>
-      </div>
-      <table style="border-collapse:collapse;width:100%;">
-        <tr style="font-size:10px;color:#888;"><th style="text-align:left;padding:2px 8px;">Campaña</th><th>OG</th><th>Objective</th><th>Results|CPR</th><th>Actions (3 primeras)</th></tr>
-        ${rows}
-      </table></div>`;
-    debugEl.style.display='block';
-  }
   return activeData;
 }
 
@@ -1249,7 +1190,7 @@ function renderSparkline(dailyData, obj, og, moneda){
     og==='OFFSITE_CONVERSIONS'||og==='VALUE'?'Costo x Compra':
     'Costo x Resultado';
 
-  const W=300,H=60,padL=38,padR=8,padT=8,padB=18;
+  const W=300,H=60,padL=38,padR=36,padT=8,padB=18;
   const innerW=W-padL-padR, innerH=H-padT-padB;
 
   const mkLine=(vals,color,dashed=false)=>{
@@ -1289,6 +1230,13 @@ function renderSparkline(dailyData, obj, og, moneda){
   const kpiMin=Math.min(...kpiNonNull,0);
   const yLabels=[kpiMin,kpiMin+(kpiMax-kpiMin)/2,kpiMax].map(v=>v>999?`${(v/1000).toFixed(1)}k`:Math.round(v).toString());
 
+  // Eje Y derecho — valores del CPR
+  const cprNonNull=cprVals.filter(v=>v!==null&&v>0);
+  const cprMax=Math.max(...cprNonNull,1);
+  const cprMin=Math.min(...cprNonNull,0);
+  const fmShort=(v)=>v===0?'0':v<10?fmoney(v).replace('$',''):v<1000?Math.round(v).toString():`${(v/1000).toFixed(1)}k`;
+  const yRLabels=[cprMin,cprMin+(cprMax-cprMin)/2,cprMax].map(v=>fmShort(v));
+
   const lastKpi=kpiVals.filter(v=>v>0).slice(-1)[0]||0;
   const lastCpr=cprVals.filter(v=>v!==null).slice(-1)[0]||0;
   const gid=`sg_${obj}_${og}`.replace(/[^a-z0-9_]/gi,'_');
@@ -1308,10 +1256,14 @@ function renderSparkline(dailyData, obj, og, moneda){
           <stop offset="100%" stop-color="var(--green)" stop-opacity="0"/>
         </linearGradient>
       </defs>
-      <!-- Eje Y labels -->
-      <text x="${padL-4}" y="${padT+4}" font-size="8" fill="#94a3b8" text-anchor="end">${yLabels[2]}</text>
+      <!-- Eje Y izquierdo — KPI -->
+      <text x="${padL-4}" y="${padT+4}" font-size="8" fill="#16a34a" text-anchor="end">${yLabels[2]}</text>
       <text x="${padL-4}" y="${padT+innerH/2+3}" font-size="8" fill="#94a3b8" text-anchor="end">${yLabels[1]}</text>
       <text x="${padL-4}" y="${padT+innerH+2}" font-size="8" fill="#94a3b8" text-anchor="end">${yLabels[0]}</text>
+      <!-- Eje Y derecho — CPR -->
+      <text x="${W-padR+4}" y="${padT+4}" font-size="8" fill="#1a3a5c" text-anchor="start" opacity="0.7">$${yRLabels[2]}</text>
+      <text x="${W-padR+4}" y="${padT+innerH/2+3}" font-size="8" fill="#94a3b8" text-anchor="start" opacity="0.7">$${yRLabels[1]}</text>
+      <text x="${W-padR+4}" y="${padT+innerH+2}" font-size="8" fill="#94a3b8" text-anchor="start" opacity="0.7">$${yRLabels[0]}</text>
       <!-- Líneas guía -->
       <line x1="${padL}" y1="${padT}" x2="${padL+innerW}" y2="${padT}" stroke="#e2e8f0" stroke-width="0.5"/>
       <line x1="${padL}" y1="${padT+innerH/2}" x2="${padL+innerW}" y2="${padT+innerH/2}" stroke="#e2e8f0" stroke-width="0.5"/>
@@ -1433,7 +1385,7 @@ function normalizeMetaObjective(metaObj, optimizationGoal){
   // Mensajes / conversaciones
   if(['CONVERSATIONS','REPLIES','MESSAGING_APPOINTMENT_CONVERSION'].includes(og)) return 'mensajes';
   // Video
-  if(['THRUPLAY','TWO_SECOND_CONTINUOUS_VIDEO_VIEWS'].includes(og)) return 'video';
+  if(['THRUPLAY','TWO_SECOND_CONTINUOUS_VIDEO_VIEWS'].includes(og)) return 'reconocimiento';
   // Reconocimiento / branding
   if(['REACH','BRAND_AWARENESS','DAILY_UNIQUE_REACH','IMPRESSIONS'].includes(og)) return 'reconocimiento';
   // Tráfico — todos los subtipos
@@ -1492,7 +1444,7 @@ function groupByObjective(campaigns){
 
 function aggregateCampaigns(data){
   // Sum numeric fields across campaigns
-  const result={spend:0,impressions:0,clicks:0,reach:0,ctr:0,cpm:0,cpc:0,frequency:0,actions:[],action_values:[]};
+  const result={spend:0,impressions:0,clicks:0,reach:0,ctr:0,cpm:0,cpc:0,frequency:0,actions:[],action_values:[],results:[],cost_per_result:[],video_thruplay_watched_actions:[]};
   let totalSpend=0;
   for(const d of data){
     result.spend+=parseFloat(d.spend||0);
@@ -1510,6 +1462,32 @@ function aggregateCampaigns(data){
       const ex=result.action_values.find(x=>x.action_type===a.action_type);
       if(ex)ex.value=String(parseFloat(ex.value)+parseFloat(a.value));
       else result.action_values.push({...a});
+    }
+    // Merge results[] — sumar values por indicator
+    for(const r of (d.results||[])){
+      const val=parseFloat((r.values||[{}])[0]?.value||r.value||0);
+      if(val===0) continue;
+      const ex=result.results.find(x=>x.indicator===r.indicator);
+      if(ex){
+        const prev=parseFloat((ex.values||[{}])[0]?.value||0);
+        if(ex.values) ex.values[0].value=String(prev+val); else ex.value=String(prev+val);
+      } else {
+        result.results.push(JSON.parse(JSON.stringify(r)));
+      }
+    }
+    // Merge cost_per_result[] — promedio ponderado por spend
+    for(const r of (d.cost_per_result||[])){
+      const val=parseFloat((r.values||[{}])[0]?.value||r.value||0);
+      if(val===0) continue;
+      const ex=result.cost_per_result.find(x=>x.indicator===r.indicator);
+      if(!ex) result.cost_per_result.push(JSON.parse(JSON.stringify(r)));
+      // CPR se recalculará en extract() a partir de spend/result
+    }
+    // Merge video_thruplay_watched_actions[]
+    for(const a of (d.video_thruplay_watched_actions||[])){
+      const ex=result.video_thruplay_watched_actions.find(x=>x.action_type===a.action_type);
+      if(ex)ex.value=String(parseFloat(ex.value)+parseFloat(a.value));
+      else result.video_thruplay_watched_actions.push({...a});
     }
   }
   // Recalculate derived metrics
@@ -1561,7 +1539,10 @@ function extract(raw, obj, optimizationGoal=''){
   const atc=fA(acts,['add_to_cart','offsite_conversion.fb_pixel_add_to_cart']);
   const ic=fA(acts,['initiate_checkout','offsite_conversion.fb_pixel_initiate_checkout']);
   const lpv=fA(acts,['landing_page_view','omni_landing_page_view']);
-  const profileVisit=fA(acts,['onsite_conversion.profile_visit','profile_visit','instagram_profile_visit']);
+  const profileVisit=fA(acts,[
+    'onsite_conversion.profile_visit','profile_visit','instagram_profile_visit',
+    'visit_instagram_profile','profile_visit_view'
+  ]);
   // ThruPlay: campo directo — video_thruplay_watched_actions[0].value (confirmado JSON)
   const thruplayArr = raw.video_thruplay_watched_actions||[];
   const thruplayDirect = thruplayArr.length>0 ? ii(thruplayArr[0].value||0) : 0;
@@ -1581,23 +1562,35 @@ function extract(raw, obj, optimizationGoal=''){
 
   // ── MAPA indicator → label legible ──
   const INDICATOR_LABEL = {
-    'profile_visit_view':                    'Visitas al perfil',
-    'visit_instagram_profile':               'Visitas al perfil',
-    'video_thruplay_watched_actions':        'ThruPlays',
-    'link_click':                            'Clics en enlace',
-    'landing_page_view':                     'Visitas landing',
-    'lead':                                  'Leads',
-    'offsite_conversion.fb_pixel_lead':      'Leads',
-    'onsite_conversion.lead_grouped':        'Leads',
-    'purchase':                              'Compras',
-    'offsite_conversion.fb_pixel_purchase':  'Compras',
-    'messaging_conversation_started_7d':     'Conversaciones',
-    'onsite_conversion.total_messaging_connection': 'Conversaciones',
-    'post_engagement':                       'Interacciones',
-    'reach':                                 'Alcance',
-    'impressions':                           'Impresiones',
-    'two_second_continuous_video_views':     'Reproducc. 2s',
-    'complete_registration':                 'Registros',
+    'profile_visit_view':                                      'Visitas al perfil',
+    'visit_instagram_profile':                                 'Visitas al perfil',
+    'video_thruplay_watched_actions':                          'ThruPlays',
+    'two_second_continuous_video_views':                       'Vistas 2s',
+    'link_click':                                              'Clics en enlace',
+    'actions:link_click':                                      'Clics en enlace',
+    'landing_page_view':                                       'Visitas landing',
+    'omni_landing_page_view':                                  'Visitas landing',
+    'lead':                                                    'Leads',
+    'offsite_conversion.fb_pixel_lead':                        'Leads',
+    'onsite_conversion.lead_grouped':                          'Leads',
+    'leadgen_grouped':                                         'Leads',
+    'purchase':                                                'Compras',
+    'offsite_conversion.fb_pixel_purchase':                    'Compras',
+    'web_in_store_purchase':                                   'Compras',
+    'onsite_conversion.messaging_conversation_started_7d':     'Conversaciones',
+    'messaging_conversation_started_7d':                       'Conversaciones',
+    'actions:onsite_conversion.messaging_conversation_started_7d': 'Conversaciones',
+    'onsite_conversion.total_messaging_connection':            'Conversaciones',
+    'onsite_conversion.messaging_first_reply':                 'Respuestas',
+    'actions:onsite_conversion.messaging_first_reply':         'Respuestas',
+    'post_engagement':                                         'Interacciones',
+    'page_engagement':                                         'Interacciones',
+    'reach':                                                   'Alcance',
+    'impressions':                                             'Impresiones',
+    'complete_registration':                                   'Registros',
+    'offsite_conversion.fb_pixel_complete_registration':       'Registros',
+    'mobile_app_install':                                      'Instalaciones',
+    'app_custom_event':                                        'Eventos App',
   };
 
   // ── FUENTE PRIMARIA: si la API devuelve results con valor, usarlo directamente ──
@@ -2325,12 +2318,14 @@ function fmoney(n, moneda){
 }
 // fn(n, moneda?) → abbreviated for KPI big display
 
-function fmoney(n,moneda){
+function fmoney(n, moneda){
   if(n===null||n===undefined||isNaN(n))return'—';
   const _n=typeof n==='number'?n:parseFloat(n);
+  if(_n===0)return sym(moneda)+'0';
+  if(Math.abs(_n)<10) return sym(moneda)+_n.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  if(Math.abs(_n)<100) return sym(moneda)+_n.toLocaleString('es-AR',{minimumFractionDigits:1,maximumFractionDigits:1});
   return sym(moneda)+Math.round(_n).toLocaleString('es-AR');
 }
-// generateAIConclusion — ver implementación completa abajo (Cerebro Estratégico JS)
 
 function renderAIConclusion(el, ai){
   let html='';
