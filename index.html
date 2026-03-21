@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -913,7 +912,7 @@ function loadSelectedSheet(filename){
 function processCSV(csv, filename){
   try{
     accounts = parseSheet(csv);
-    if(!accounts.length) throw new Error('No se encontraron cuentas válidas. Verificá que la Col H tenga act_xxx.');
+    if(!accounts.length) throw new Error('No se encontraron cuentas válidas. Verificá que la columna con act= esté presente en el archivo.');
     
     // Update UI
     const zoneName = filename.replace('.csv','');
@@ -951,41 +950,58 @@ function parseSheet(csv){
     if(low.includes('cliente')||low.includes('cuenta')||low.includes('inversión')||low.includes('inversion')){hi=i;break;}
   }
   if(hi===-1)hi=3;
-  
+
+  // Detectar dinámicamente los índices de columna buscando act= en las primeras filas de datos
+  const findActIdx = (cols) => cols.findIndex(c=>cl(c).includes('act=') || cl(c).includes('act_'));
+
+  // Buscar el índice real de act= y derivar todos los demás relativamente
+  // La estructura del sheet es: [vacía?,Fecha,Cliente,Inv,Pres,Dif,%,CuentaPub,Cliente2,Obs,Moneda]
+  // act= siempre está 5 columnas después de Cliente
+  let iCuenta = 7; // default sin col vacía
+  for(let i=hi+1;i<Math.min(hi+5,lines.length);i++){
+    const cols=parseLine(lines[i]);
+    const actIdx=findActIdx(cols);
+    if(actIdx>=0){ iCuenta=actIdx; break; }
+  }
+  // Índices relativos al índice de cuenta publicitaria
+  const iCliente = iCuenta - 5;
+  const iInv     = iCuenta - 4;
+  const iPres    = iCuenta - 3;
+  const iObs     = iCuenta + 2;
+  const iMoneda  = iCuenta + 3;
+
   // First pass: count how many clients share each act=
   const actCount={};
   for(let i=hi+1;i<lines.length;i++){
     const cols=parseLine(lines[i]);
-    if(cols.length<8)continue;
-    const cuentaPub=cl(cols[7]);
+    if(cols.length<iCuenta+1)continue;
+    const cuentaPub=cl(cols[iCuenta]);
     if(!cuentaPub||(!cuentaPub.includes('act_')&&!cuentaPub.includes('act=')))continue;
     actCount[cuentaPub]=(actCount[cuentaPub]||0)+1;
   }
-  
-  // Second pass: build accounts, using cliente as unique key for shared act=
+
+  // Second pass: build accounts
   const seen=new Set();const res=[];
   for(let i=hi+1;i<lines.length;i++){
     const cols=parseLine(lines[i]);
-    if(cols.length<8)continue;
-    const cliente=cl(cols[2]);
-    const invStr=cl(cols[3]);
-    const presStr=cl(cols[4]);
-    const cuentaPub=cl(cols[7]);
-    const obs=cl(cols[9]||'').toUpperCase();
+    if(cols.length<iCuenta+1)continue;
+    const cliente=cl(cols[iCliente]);
+    const invStr=cl(cols[iInv]);
+    const presStr=cl(cols[iPres]);
+    const cuentaPub=cl(cols[iCuenta]);
+    const obs=cl(cols[iObs]||'').toUpperCase();
     if(!cuentaPub||(!cuentaPub.includes('act_')&&!cuentaPub.includes('act=')))continue;
     if(!cliente)continue;
-    
-    // Use cliente+act as unique key if multiple clients share same act=
+
     const isShared = actCount[cuentaPub] > 1;
     const uniqueKey = isShared ? cliente+'|'+cuentaPub : cuentaPub;
     if(seen.has(uniqueKey))continue;
     seen.add(uniqueKey);
-    
+
     const inv=parseFloat(invStr.replace(/[^0-9.]/g,''))||0;
     const pres=parseFloat(presStr.replace(/[^0-9.]/g,''))||0;
     const obj=normalObj(obs,cliente);
-    // Store campaign name filter for shared accounts
-    const moneda=cl(cols[10]||'').toUpperCase()||'ARS';
+    const moneda=cl(cols[iMoneda]||'').toUpperCase()||'ARS';
     res.push({cliente,cuentaPub,inv_usd:inv,pres_ars:pres,objetivo:obj,obs,isShared,campaignFilter:null,moneda});
   }
   return res;
@@ -1093,9 +1109,6 @@ async function fetchCampaigns(accountId, since, until, campaignFilter=null){
   if(id.startsWith('act=')) id = 'act_' + id.slice(4);
   else if(!id.startsWith('act_')) id = 'act_' + id;
 
-  // FETCH 1: Insights a nivel adset
-  // Según doc oficial Meta v25.0: optimization_goal viene directo en insights
-  // results y cost_per_result son los campos canónicos de Ads Manager
   const insightFields=[
     'campaign_id','campaign_name','objective','optimization_goal',
     'adset_id','adset_name',
@@ -1107,15 +1120,25 @@ async function fetchCampaigns(accountId, since, until, campaignFilter=null){
   let filterArr=[];
   if(campaignFilter) filterArr.push({"field":"campaign.name","operator":"CONTAIN","value":campaignFilter});
   const filterStr=filterArr.length?'&filtering='+encodeURIComponent(JSON.stringify(filterArr)):'';
-  const insightUrl=`https://graph.facebook.com/${cfg.metaVersion}/${id}/insights?fields=${insightFields}&time_range={"since":"${since}","until":"${until}"}&level=adset${filterStr}&access_token=${cfg.metaToken}`;
-  const insightRes=await fetch(insightUrl);const insightJson=await insightRes.json();
-  if(insightJson.error)throw new Error(insightJson.error.message);
-  const data=insightJson.data||[];
-  if(!data.length) return [];
 
-  // Filtrar adsets sin datos (pausados/inactivos en el período)
-  const activeData = data.filter(d=>parseInt(d.impressions||0)>0);
-  // Normalizar optimization_goal — viene directo de la API
+  // Intentar primero level=adset
+  const adsetUrl=`https://graph.facebook.com/${cfg.metaVersion}/${id}/insights?fields=${insightFields}&time_range={"since":"${since}","until":"${until}"}&level=adset${filterStr}&access_token=${cfg.metaToken}`;
+  const adsetRes=await fetch(adsetUrl);const adsetJson=await adsetRes.json();
+  if(adsetJson.error)throw new Error(adsetJson.error.message);
+  const adsetData=(adsetJson.data||[]).filter(d=>parseInt(d.impressions||0)>0);
+
+  // Si adset devolvió datos, usarlos
+  let activeData = adsetData;
+
+  // Fallback a level=campaign si adset vino vacío
+  if(!activeData.length){
+    const campUrl=`https://graph.facebook.com/${cfg.metaVersion}/${id}/insights?fields=${insightFields}&time_range={"since":"${since}","until":"${until}"}&level=campaign${filterStr}&access_token=${cfg.metaToken}`;
+    const campRes=await fetch(campUrl);const campJson=await campRes.json();
+    if(!campJson.error){
+      activeData=(campJson.data||[]).filter(d=>parseInt(d.impressions||0)>0);
+    }
+  }
+
   for(const d of activeData){
     d.optimization_goal = normalizeOg(d.optimization_goal||'');
   }
@@ -1127,7 +1150,7 @@ async function fetchDaily(accountId, since, until, campaignFilter=null){
   let id = accountId;
   if(id.startsWith('act=')) id = 'act_' + id.slice(4);
   else if(!id.startsWith('act_')) id = 'act_' + id;
-  const fields=['spend','impressions','clicks','reach','actions','outbound_clicks'].join(',');
+  const fields=['spend','impressions','clicks','reach','actions','outbound_clicks','video_thruplay_watched_actions'].join(',');
   let filterArr=[];
   if(campaignFilter) filterArr.push({"field":"campaign.name","operator":"CONTAIN","value":campaignFilter});
   const filterStr=filterArr.length?'&filtering='+encodeURIComponent(JSON.stringify(filterArr)):'';
@@ -1148,8 +1171,10 @@ function extractDailyKpi(dayData, obj, og){
     return fA(acts,['onsite_conversion.messaging_conversation_started_7d','onsite_conversion.total_messaging_connection','onsite_conversion.messaging_first_reply']);
   if(ogUp==='LEAD_GENERATION'||obj==='leads')
     return fA(acts,['lead','offsite_conversion.fb_pixel_lead','onsite_conversion.lead_grouped']);
-  if(ogUp==='THRUPLAY'||obj==='video')
-    return fA(acts,['video_thruplay_watched_actions']);
+  if(ogUp==='THRUPLAY'||og==='TWO_SECOND_CONTINUOUS_VIDEO_VIEWS'||obj==='video'){
+    const direct = parseInt((dayData.video_thruplay_watched_actions||[]).find(v=>v.action_type==='video_view')?.value||0);
+    return direct>0?direct:fA(acts,['video_thruplay_watched_actions']);
+  }
   if(ogUp==='LANDING_PAGE_VIEWS')
     return fA(acts,['landing_page_view']);
   if(ogUp==='PROFILE_VISIT')
@@ -1173,21 +1198,21 @@ function renderSparkline(dailyData, obj, og, moneda){
 
   const kpiLabel = og==='CONVERSATIONS'||obj==='mensajes'?'Conv/día':
     og==='THRUPLAY'||og==='TWO_SECOND_CONTINUOUS_VIDEO_VIEWS'||obj==='video'?'ThruPlays/día':
-    obj==='leads'?'Leads/día':
-    og==='LINK_CLICKS'||obj==='trafico'?'Clics/día':
+    obj==='leads'||og==='LEAD_GENERATION'||og==='QUALITY_LEAD'?'Leads/día':
     og==='PROFILE_VISIT'?'Visitas perfil/día':
     og==='LANDING_PAGE_VIEWS'?'LPV/día':
+    og==='LINK_CLICKS'||obj==='trafico'?'Clics/día':
     og==='REACH'||obj==='reconocimiento'?'Alcance/día':'Resultado/día';
 
   // Label del KPI secundario según optimization_goal
-  const cprLabel = og==='LINK_CLICKS'||obj==='trafico'?'CPC':
-    (og==='REACH'||og==='BRAND_AWARENESS'||og==='DAILY_UNIQUE_REACH'||obj==='reconocimiento')?'CPM':
-    og==='THRUPLAY'||og==='TWO_SECOND_CONTINUOUS_VIDEO_VIEWS'?'Costo x ThruPlay':
+  const cprLabel = og==='PROFILE_VISIT'?'Costo x Visita al perfil':
     og==='LANDING_PAGE_VIEWS'?'Costo x Visita':
-    og==='PROFILE_VISIT'?'Costo x Visita al perfil':
+    og==='THRUPLAY'||og==='TWO_SECOND_CONTINUOUS_VIDEO_VIEWS'?'Costo x ThruPlay':
     og==='LEAD_GENERATION'||og==='QUALITY_LEAD'?'Costo x Lead':
     og==='CONVERSATIONS'||og==='REPLIES'?'Costo x Conversación':
     og==='OFFSITE_CONVERSIONS'||og==='VALUE'?'Costo x Compra':
+    (og==='REACH'||og==='BRAND_AWARENESS'||og==='DAILY_UNIQUE_REACH'||obj==='reconocimiento')?'CPM':
+    og==='LINK_CLICKS'||obj==='trafico'?'CPC':
     'Costo x Resultado';
 
   const W=300,H=60,padL=38,padR=36,padT=8,padB=18;
@@ -1851,6 +1876,183 @@ function getOptGoalMeta(optimizationGoal, objMeta){
   return { label: objMeta.label, kpi: objMeta.kpiLabel, troncal: objMeta.troncal };
 }
 
+function preGenerateSteps(objBlocks, w1, w2, m1, m2, wD, mD, acc){
+  const moneda = acc.moneda||'ARS';
+  const pasosSemanales = [];
+  const pasosMensuales = [];
+  const multiObj = objBlocks && objBlocks.length > 1;
+  const RL_MAP={
+    'actions:offsite_conversion.fb_pixel_purchase':'Compras','offsite_conversion.fb_pixel_purchase':'Compras','purchase':'Compras',
+    'actions:offsite_conversion.fb_pixel_lead':'Leads','offsite_conversion.fb_pixel_lead':'Leads','lead':'Leads','onsite_conversion.lead_grouped':'Leads',
+    'actions:onsite_conversion.messaging_conversation_started_7d':'Conversaciones','onsite_conversion.messaging_conversation_started_7d':'Conversaciones',
+    'profile_visit_view':'Visitas al perfil','video_thruplay_watched_actions':'ThruPlays',
+    'actions:link_click':'Clics','link_click':'Clics','landing_page_view':'Visitas landing'
+  };
+  const mapRl = v => RL_MAP[v] || RL_MAP[(v||'').toLowerCase()] || v || 'resultados';
+  const pct = (a,b) => (a>0&&b>0) ? ((a-b)/b*100) : null;
+  const mid = '\u00b7';
+
+  // Detectar si un bloque es de tipo alcance/branding (sin CPR real)
+  const isReachBlock = (block) => {
+    const og = (block.optimizationGoal||'').toUpperCase();
+    return ['REACH','BRAND_AWARENESS','DAILY_UNIQUE_REACH'].includes(og);
+  };
+
+  for(const block of (objBlocks||[])){
+    const bLabel = block.meta?.parentLabel || block.obj;
+    const bOgLabel = block.meta?.label || '';
+    const prefix = multiObj ? (bOgLabel && bOgLabel !== bLabel ? `${bLabel} ${mid} ${bOgLabel}` : bLabel) + ': ' : '';
+    const bW1 = block.w1, bW2 = block.w2, bM1 = block.m1, bM2 = block.m2;
+    const bDiagsW = block.diagW?.diags||[];
+    const bDiagsM = block.diagM?.diags||[];
+    const isReach = isReachBlock(block);
+
+    // ── SEMANALES ──
+    if(isReach){
+      // Para alcance: comparar reach y CPM
+      const reachChg = pct(bW1?.reach, bW2?.reach);
+      const cpmChg = pct(bW1?.cpm, bW2?.cpm);
+      const freqVal = bW1?.freq?.toFixed(1)||'—';
+      let msg = '';
+      if(reachChg!==null && reachChg < -10){
+        msg = `\u26a1 ${prefix}Alcance: ${fn(bW1?.reach||0)} \u2193${Math.abs(reachChg).toFixed(0)}% vs sem ant`;
+        if(bW1?.cpm>0) msg += ` ${mid} CPM: ${fmoney(bW1.cpm,moneda)}`;
+        if(cpmChg!==null && cpmChg > 10) msg += ` (CPM \u2191${cpmChg.toFixed(0)}%)`;
+        const spendChg = pct(bW1?.spend, bW2?.spend);
+        if(spendChg!==null && spendChg < -10)
+          msg += `. La inversi\u00f3n baj\u00f3 ${Math.abs(spendChg).toFixed(0)}% \u2014 verificar l\u00edmites de presupuesto.`;
+        else if(cpmChg!==null && cpmChg > 15)
+          msg += `. CPM subiendo \u2014 la audiencia se est\u00e1 encareciendo.`;
+        else msg += `. Revisar configuraci\u00f3n de entrega.`;
+      } else {
+        msg = `\u2713 ${prefix}Alcance: ${fn(bW1?.reach||0)} esta semana`;
+        if(bW1?.cpm>0) msg += ` ${mid} CPM: ${fmoney(bW1.cpm,moneda)}`;
+        if(reachChg!==null) msg += ` (${reachChg>0?'+':''}${reachChg.toFixed(0)}% vs ant)`;
+        msg += `. Frecuencia: ${freqVal}x. Sin alertas.`;
+      }
+      if(msg) pasosSemanales.push(msg);
+    } else {
+      const bFreq = bDiagsW.find(d=>d.title.includes('Frecuencia')||d.title.includes('Fatiga'));
+      if(bFreq){
+        const fVal = bW1?.freq?.toFixed(1)||'';
+        pasosSemanales.push(`\ud83d\udd34 ${prefix}Frecuencia ${fVal}x \u2014 preparar 2-3 variantes creativas antes de que impacte el CTR.`);
+      }
+      const bCPRwCrit = bDiagsW.find(d=>(d.title.includes('Costo por')||d.title.includes('CPR')) && d.type==='critical');
+      if(bCPRwCrit) pasosSemanales.push(`\ud83d\udd34 ${prefix}${bCPRwCrit.title} \u2014 auditar conjuntos y pausar los de mayor costo.`);
+
+      if(bW1?.result>0){
+        const rl = mapRl(bW1.rl||bM1?.rl);
+        const cpr = bW1.cpr>0 ? fmoney(bW1.cpr, moneda) : null;
+        const resChg = pct(bW1.result, bW2?.result);
+        const cprChg = pct(bW1.cpr, bW2?.cpr);
+        const spendChg = pct(bW1.spend, bW2?.spend);
+        let msg = '';
+        if(resChg!==null && Math.abs(resChg)>=10){
+          const dir = resChg>0 ? '\u2191' : '\u2193';
+          const tone = resChg>0 ? '\u2713' : '\u26a1';
+          let causa = '';
+          if(resChg < -10){
+            if(spendChg!==null && spendChg < -10)
+              causa = ` La inversi\u00f3n baj\u00f3 ${Math.abs(spendChg).toFixed(0)}% \u2014 verificar l\u00edmites de presupuesto diario.`;
+            else if(cprChg!==null && cprChg > 15)
+              causa = ` El costo por resultado subi\u00f3 ${cprChg.toFixed(0)}% \u2014 posible saturaci\u00f3n de audiencia o creativos agotados.`;
+            else if(bW1.freq>3)
+              causa = ` Frecuencia ${bW1.freq.toFixed(1)}x indica saturaci\u00f3n \u2014 rotar creativos.`;
+            else causa = ` Revisar si hubo cambios en pujas, audiencias o temporada.`;
+          } else if(resChg > 20){
+            causa = ` Buen momento para escalar presupuesto en los conjuntos m\u00e1s eficientes.`;
+          }
+          msg = `${tone} ${prefix}${rl}: ${fn(bW1.result)} ${dir}${Math.abs(resChg).toFixed(0)}% vs sem ant`;
+          if(cpr) msg += ` ${mid} CPR: ${cpr}`;
+          if(cprChg!==null && Math.abs(cprChg)>=5) msg += ` (CPR ${cprChg>0?'\u2191':'\u2193'}${Math.abs(cprChg).toFixed(0)}%)`;
+          msg += `.${causa}`;
+        } else if(!bFreq && !bCPRwCrit){
+          msg = `\u2713 ${prefix}${rl}: ${fn(bW1.result)} esta semana`;
+          if(cpr) msg += ` ${mid} CPR ${cpr}`;
+          if(resChg!==null) msg += ` (${resChg>0?'+':''}${resChg.toFixed(0)}% vs ant)`;
+          msg += `. Sin alertas.`;
+        }
+        if(msg) pasosSemanales.push(msg);
+      } else if(!bDiagsW.find(d=>d.type==='critical') && bW1?.spend>0){
+        pasosSemanales.push(`\u26a1 ${prefix}Sin resultados registrados esta semana. Verificar configuraci\u00f3n del evento.`);
+      }
+    }
+
+    // ── MENSUALES ──
+    if(isReach){
+      const reachChg = pct(bM1?.reach, bM2?.reach);
+      const cpmChg = pct(bM1?.cpm, bM2?.cpm);
+      const spendChg = pct(bM1?.spend, bM2?.spend);
+      let msg = '';
+      if(reachChg!==null && reachChg < -10 && (cpmChg===null || cpmChg < 10)){
+        msg = `\u26a1 ${prefix}Alcance: ${fn(bM1?.reach||0)} \u2193${Math.abs(reachChg).toFixed(0)}% vs mes ant`;
+        if(bM1?.cpm>0) msg += ` ${mid} CPM: ${fmoney(bM1.cpm,moneda)}`;
+        if(spendChg!==null && spendChg < -10)
+          msg += `. Ca\u00edda proporcional al recorte de inversi\u00f3n (${spendChg.toFixed(0)}%) \u2014 eficiencia estable.`;
+        else msg += `. Revisar distribuci\u00f3n de presupuesto.`;
+      } else if(cpmChg!==null && cpmChg > 15){
+        msg = `\u26a1 ${prefix}CPM subi\u00f3 ${cpmChg.toFixed(0)}% vs mes ant (${fmoney(bM2?.cpm||0,moneda)} \u2192 ${fmoney(bM1?.cpm||0,moneda)}). La audiencia se est\u00e1 encareciendo \u2014 evaluar ampliar segmentaci\u00f3n o cambiar puja.`;
+      } else {
+        msg = `\u2713 ${prefix}Alcance: ${fn(bM1?.reach||0)}`;
+        if(bM1?.cpm>0) msg += ` ${mid} CPM: ${fmoney(bM1.cpm,moneda)}`;
+        if(reachChg!==null) msg += ` (${reachChg>0?'+':''}${reachChg.toFixed(0)}% vs mes ant)`;
+        msg += `. M\u00e9tricas estables.`;
+      }
+      pasosMensuales.push(msg);
+    } else if(bM1?.result>0){
+      const rl = mapRl(bM1.rl);
+      const cpr = bM1.cpr>0 ? fmoney(bM1.cpr, moneda) : null;
+      const resChg = pct(bM1.result, bM2?.result);
+      const cprChg = pct(bM1.cpr, bM2?.cpr);
+      const spendChg = pct(bM1.spend, bM2?.spend);
+      const resBad = resChg!==null && resChg < -10;
+      const cprBad = cprChg!==null && cprChg > 15;
+      const resBueno = resChg!==null && resChg > 10;
+      const cprBueno = cprChg!==null && cprChg < -10;
+      let msg = '';
+      if(resBad || cprBad){
+        const tone = (resBad && cprBad) ? '\ud83d\udd34' : '\u26a1';
+        let causa = '';
+        if(spendChg!==null && spendChg < -10 && Math.abs(spendChg) >= Math.abs(resChg||0)*0.7)
+          causa = ` La inversi\u00f3n cay\u00f3 ${Math.abs(spendChg).toFixed(0)}% vs mismo per\u00edodo \u2014 el volumen bajo es consecuencia del recorte, la eficiencia se mantiene.`;
+        else if(cprBad && resBueno)
+          causa = ` Volumen creciendo pero el costo por resultado subi\u00f3 ${cprChg.toFixed(0)}% \u2014 monitorear eficiencia antes de escalar.`;
+        else if(cprBad && !resBad)
+          causa = ` El volumen se mantiene pero el costo subi\u00f3 ${cprChg.toFixed(0)}% \u2014 revisar pujas y renovar creativos.`;
+        else if(resBad && !cprBad)
+          causa = ` El CPR es estable pero hay menos resultados \u2014 posible ca\u00edda de presupuesto activo.`;
+        else
+          causa = ` Ambos indicadores deteriorados \u2014 revisar segmentaci\u00f3n y creativos.`;
+        msg = `${tone} ${prefix}${rl}: ${fn(bM1.result)}`;
+        if(resChg!==null){
+          const resDir = resChg > 0 ? '\u2191' : '\u2193';
+          msg += ` ${resDir}${Math.abs(resChg).toFixed(0)}% vs mismo per\u00edodo mes ant`;
+        }
+        if(cpr) msg += ` ${mid} CPR ${cpr}`;
+        if(cprBad) msg += ` (\u2191${cprChg.toFixed(0)}%)`;
+        msg += `.${causa}`;
+      } else if(resBueno || cprBueno){
+        let causa = '';
+        if(cprBueno && resBueno) causa = ` M\u00e1s resultados a menor costo \u2014 escalar inversi\u00f3n en los conjuntos m\u00e1s eficientes.`;
+        else if(cprBueno) causa = ` CPR mejor\u00f3 ${Math.abs(cprChg).toFixed(0)}% \u2014 buen momento para escalar.`;
+        else causa = ` Volumen creciendo \u2014 mantener y monitorear que el CPR no suba.`;
+        msg = `\u2713 ${prefix}${rl}: ${fn(bM1.result)} \u2191${resChg?.toFixed(0)||''}% vs mismo per\u00edodo mes ant`;
+        if(cpr) msg += ` ${mid} CPR ${cpr}`;
+        msg += `.${causa}`;
+      } else {
+        msg = `\u2713 ${prefix}${rl}: ${fn(bM1.result)}`;
+        if(cpr) msg += ` ${mid} CPR ${cpr}`;
+        if(resChg!==null) msg += ` (${resChg>0?'+':''}${resChg.toFixed(0)}% vs mes ant)`;
+        msg += `. M\u00e9tricas estables.`;
+      }
+      pasosMensuales.push(msg);
+    } else if(bM1?.spend>0 && !isReach){
+      pasosMensuales.push(`\u26a1 ${prefix}Sin resultados registrados este mes. Verificar configuraci\u00f3n del pixel o evento de conversi\u00f3n.`);
+    }
+  }
+  return { pasosSemanales, pasosMensuales };
+}
+
 function buildObjBlocks(byObjW1, byObjW2, byObjM1, byObjM2, acc, dailyData=[]){
   // Unión de todas las claves (obj||optimizationGoal) encontradas en todos los períodos
   const allKeys = new Set([
@@ -2037,6 +2239,15 @@ function analyzeObjBlock(curr, prev, obj, moneda, isMensual){
       });
     }
   }
+  // Frecuencia — aplica a todos los objetivos en período semanal
+  if(!isMensual && curr.freq>=3.5){
+    const lvl=curr.freq>=5?'critical':'warning';
+    diags.push({type:lvl, title:`Fatiga creativa — Frecuencia: ${curr.freq.toFixed(1)}`,
+      detail:`La audiencia ve el anuncio ${curr.freq.toFixed(1)} veces. ${curr.freq>=5?'Nivel crítico: pausar y rotar creativos urgente.':'Zona de atención: preparar variantes nuevas.'}`,
+      nums:[`Frecuencia: ${curr.freq.toFixed(1)}`,`Alcance: ${fn(curr.reach)}`]
+    });
+    if(curr.freq>=5) actions.push('Rotación de creativos urgente');
+  }
   return {diags, actions};
 }
 
@@ -2080,7 +2291,9 @@ async function runAudit(){
       const byObjM2=groupByObjective(campM2);
       // Construir bloques de KPI por objetivo con comparación
       const objBlocks=buildObjBlocks(byObjW1,byObjW2,byObjM1,byObjM2,accEf,dailyM1);
-      results.push({acc:accEf,w1,w2,m1,m2,wD,mD,objBlocks,error:null});
+      // Pre-generar pasos para mostrar antes del cerebro asíncrono
+      const preSteps = preGenerateSteps(objBlocks, w1, w2, m1, m2, wD, mD, accEf);
+      results.push({acc:accEf,w1,w2,m1,m2,wD,mD,objBlocks,preSteps,error:null});
     }catch(e){results.push({acc,error:e.message});}
   }
   renderResults(results,ranges);
@@ -2160,26 +2373,26 @@ function renderBrandBody(r,ranges){
 
 function renderPerfBody(r,ranges,budBlock){
   const{acc,w1,w2,m1,m2,wD,mD}=r;
+  const ps = r.preSteps||{pasosSemanales:[],pasosMensuales:[]};
+  const renderPreSteps = (pasos, titulo) => pasos.length ? `
+    <div class="ai-section">
+      <div class="ai-section-title">${titulo}</div>
+      ${pasos.map((s,i)=>`<div class="ai-step"><div class="ai-step-num">${i+1}</div><div style="font-size:12px;">${s}</div></div>`).join('')}
+    </div>` : '';
   return`
   <div class="dwrap" style="padding-bottom:0;">
     <div class="sdivider" style="margin-bottom:16px;">KPIs por Objetivo · Campañas Activas</div>
-    ${r.objBlocks&&r.objBlocks.length>0?renderObjBlocks(r.objBlocks,acc):'<div style="padding:16px;color:var(--muted);font-size:13px;">Sin campañas activas en el período analizado.</div>'}
+    ${r.objBlocks&&r.objBlocks.length>0?renderObjBlocks(r.objBlocks,acc):(r.m1?.spend>0?renderObjBlocks([{obj:acc.objetivo||'ventas',meta:{icon:'📊',label:acc.objetivo||'ventas',parentLabel:acc.objetivo||'ventas',kpiLabel:'',optimizationGoal:'NONE'},w1:r.w1,w2:r.w2,m1:r.m1,m2:r.m2,diagW:r.wD,diagM:r.mD,badConfig:null,optimizationGoal:'NONE',dailyData:[],campaignCount:0,campaignNames:[]}],acc):'<div style="padding:16px;color:var(--muted);font-size:13px;">Sin campañas activas en el período analizado.</div>')}
   </div>
   ${budBlock?`<div class="cwrap">${budBlock}</div>`:''}
   <div class="cwrap">
     <div class="sdivider" style="margin-bottom:12px;">Comparación de Períodos · Cuenta Total</div>
-    ${compTable(r,ranges,acc.moneda)}
+    ${compTable(r,ranges,acc.moneda,r.objBlocks)}
   </div>
   <div class="dwrap">
-    <div style="margin-bottom:24px;">
-      <div class="dst">Diagnóstico Semanal · ${ranges.w1.label} vs ${ranges.w2.label}</div>
-      ${renderDiag(wD)}
-    </div>
-    <div>
-      <div class="dst">Diagnóstico Mensual · Mes actual vs mismo período mes anterior</div>
-      ${renderDiag(mD)}
-    </div>
-    <div style="margin-top:24px;">
+    <div style="margin-top:0;">
+      ${renderPreSteps(ps.pasosSemanales,'Próximos Pasos · Esta Semana')}
+      ${renderPreSteps(ps.pasosMensuales,'Análisis del Mes')}
       <div class="dst">Cerebro Estratégico · Conclusiones & Próximos Pasos</div>
       <div id="ai_${safeId(acc.cuentaPub)}" class="ai-conclusion-box">
         <div class="ai-loading">
@@ -2234,26 +2447,56 @@ function renderBudget(spentUSD,budgetARS,metrics,obj,moneda='ARS'){
   </div>`;
 }
 
-function compTable(r,ranges,moneda='ARS'){
-  const{w1,w2,m1,m2}=r;
-  const rl=w1?.rl||m1?.rl||'Resultados';
+function compTable(r,ranges,moneda='ARS',objBlocks=[]){
+  const dominantOg=(objBlocks.length===1?objBlocks[0].optimizationGoal:null)||'';
+  const ogUp=dominantOg.toUpperCase();
+  // Si hay un solo objetivo, usar los datos del bloque para consistencia con KPIs principales
+  const useBlock = objBlocks.length===1 && objBlocks[0].m1;
+  const w1 = useBlock ? objBlocks[0].w1 : r.w1;
+  const w2 = useBlock ? objBlocks[0].w2 : r.w2;
+  const m1 = useBlock ? objBlocks[0].m1 : r.m1;
+  const m2 = useBlock ? objBlocks[0].m2 : r.m2;
+  // Para métricas de cuenta total (inversión, impresiones, etc.) siempre usar r
+  const rw1=r.w1, rw2=r.w2, rm1=r.m1, rm2=r.m2;
+  const OG_KPI={
+    'OFFSITE_CONVERSIONS':{rl:'Compras',cl:'Costo x Compra'},
+    'VALUE':{rl:'Compras',cl:'Costo x Compra'},
+    'LEAD_GENERATION':{rl:'Leads',cl:'Costo x Lead'},
+    'QUALITY_LEAD':{rl:'Leads',cl:'Costo x Lead'},
+    'CONVERSATIONS':{rl:'Conversaciones',cl:'Costo x Conversación'},
+    'REPLIES':{rl:'Conversaciones',cl:'Costo x Conversación'},
+    'THRUPLAY':{rl:'ThruPlays',cl:'Costo x ThruPlay'},
+    'TWO_SECOND_CONTINUOUS_VIDEO_VIEWS':{rl:'ThruPlays',cl:'Costo x ThruPlay'},
+    'PROFILE_VISIT':{rl:'Visitas al perfil',cl:'Costo x Visita al perfil'},
+    'LANDING_PAGE_VIEWS':{rl:'Visitas landing',cl:'Costo x Visita'},
+    'LINK_CLICKS':{rl:'Clics',cl:'Costo x Clic'},
+    'REACH':{rl:'Alcance',cl:'Costo x CPM'},
+    'BRAND_AWARENESS':{rl:'Alcance',cl:'Costo x CPM'},
+    'DAILY_UNIQUE_REACH':{rl:'Alcance',cl:'Costo x CPM'},
+  };
+  const isReachOg=['REACH','BRAND_AWARENESS','DAILY_UNIQUE_REACH'].includes(ogUp);
+  const kpiMeta=OG_KPI[ogUp]||null;
+  const rlLabel=kpiMeta?.rl||w1?.rl||m1?.rl||'';
+  const clLabel=kpiMeta?.cl||(rlLabel?`Costo x ${rlLabel}`:'');
+  const getRes=(d)=>isReachOg?(d?.reach||0):(d?.result||0);
+  const getCst=(d)=>isReachOg?(d?.cpm||0):(d?.cpr||0);
   const rows=[
-    ['Inversión',w1?.spend,w2?.spend,m1?.spend,m2?.spend,'CUR',false],
-    ['Impresiones',w1?.impressions,w2?.impressions,m1?.impressions,m2?.impressions,'',false],
-    ['Clics',w1?.clicks,w2?.clicks,m1?.clicks,m2?.clicks,'',false],
-    ['CTR',w1?.ctr,w2?.ctr,m1?.ctr,m2?.ctr,'%',true],
-    ['CPM',w1?.cpm,w2?.cpm,m1?.cpm,m2?.cpm,'CUR',true],
-    ['CPC',w1?.cpc,w2?.cpc,m1?.cpc,m2?.cpc,'CUR',true],
-    ['Frecuencia',w1?.freq,w2?.freq,m1?.freq,m2?.freq,'',true],
-    [`Costo x ${rl}`,w1?.cpr,w2?.cpr,m1?.cpr,m2?.cpr,'CUR',true],
-    [rl,w1?.result,w2?.result,m1?.result,m2?.result,'',false],
+    ['Inversión',rw1?.spend,rw2?.spend,rm1?.spend,rm2?.spend,'CUR',false],
+    ['Impresiones',rw1?.impressions,rw2?.impressions,rm1?.impressions,rm2?.impressions,'',false],
+    ['Clics',rw1?.clicks,rw2?.clicks,rm1?.clicks,rm2?.clicks,'',false],
+    ['CTR',rw1?.ctr,rw2?.ctr,rm1?.ctr,rm2?.ctr,'%',true],
+    ['CPM',rw1?.cpm,rw2?.cpm,rm1?.cpm,rm2?.cpm,'CUR',true],
+    ['CPC',rw1?.cpc,rw2?.cpc,rm1?.cpc,rm2?.cpc,'CUR',true],
+    ['Frecuencia',rw1?.freq,rw2?.freq,rm1?.freq,rm2?.freq,'',true],
+    ...(clLabel?[[clLabel,getCst(w1),getCst(w2),getCst(m1),getCst(m2),'CUR',true]]:[]),
+    ...(rlLabel?[[rlLabel,getRes(w1),getRes(w2),getRes(m1),getRes(m2),'',false]]:[]),
   ];
   
   const cellWithDelta=(curr,prev,pfx,lb)=>{
     if(!curr&&curr!==0)return'<span style="color:var(--muted2)">—</span>';
     const val=pfx==='CUR'?fmoney(curr,moneda):(pfx==='%'?fnD(curr,2)+'%':pfx+fn(curr));
     if(!prev||prev===0)return`<strong>${val}</strong>`;
-    const d=((curr-prev)/curr)*100;
+    const d=((curr-prev)/prev)*100;
     const bad=lb?d>0:d<0;
     const col=Math.abs(d)<3?'var(--muted2)':(bad?'var(--red)':'var(--green)');
     const arrow=d>0?'↑':'↓';
@@ -2372,11 +2615,12 @@ function renderObjBlocks(blocks, acc){
     const cur = m1||w1;
     if(!cur) return '';
 
-    const pct = (curr, prev, lowerBetter=false) => {
+    const pct = (curr, prev, lowerBetter=false, fmt='') => {
       if(!prev||!curr||prev===0) return '';
       const d = ((curr-prev)/prev)*100;
       const good = lowerBetter ? d<0 : d>0;
-      return `<span style="color:${good?'var(--green)':'var(--red)'};font-size:10px;font-weight:700;margin-left:3px;">${d>0?'↑':'↓'}${Math.abs(d).toFixed(1)}%</span>`;
+      const prevFmt = fmt==='CUR' ? fmoney(prev,moneda) : fmt==='%' ? fnD(prev,2)+'%' : fn(prev);
+      return `<span style="color:${good?'var(--green)':'var(--red)'};font-size:10px;font-weight:700;margin-left:3px;">${d>0?'↑':'↓'}${Math.abs(d).toFixed(1)}%</span><span style="font-size:10px;color:var(--muted);font-weight:400;margin-left:3px;">(ant: ${prevFmt})</span>`;
     };
 
     const chip = (label, val, delta='', color='', style='') =>
@@ -2392,7 +2636,7 @@ function renderObjBlocks(blocks, acc){
     const chipM2 = (label, val, delta='', color='') =>
       `<div class="obj-kpi obj-kpi-m2">
         <div class="obj-kpi-label">${label}</div>
-        <div class="obj-kpi-val"${color?` style="color:${color}"`:''}>${val}${delta}</div>
+        <div class="obj-kpi-val"${color?` style="color:${color}"`:''}>${val}</div>
       </div>`;
 
     const og = (optimizationGoal||'').toUpperCase();
@@ -2434,36 +2678,36 @@ function renderObjBlocks(blocks, acc){
 
     if(isThruplay){
       chipsM =
-        chip('ThruPlays (Mes)', fn(m1?.thruplay||0)) +
-        chip('Costo x ThruPlay', m1?.cpr>0?fmoney(m1.cpr,moneda):'—') +
-        chip('CPM', fmoney(m1?.cpm||0,moneda)) +
-        chip('Inversión (Mes)', fmoney(m1?.spend||0,moneda));
+        chip('ThruPlays (Mes)', fn(m1?.thruplay||0), pct(m1?.thruplay, m2?.thruplay, false, '')) +
+        chip('Costo x ThruPlay', m1?.cpr>0?fmoney(m1.cpr,moneda):'—', pct(m1?.cpr, m2?.cpr, true, 'CUR')) +
+        chip('Costo x CPM', fmoney(m1?.cpm||0,moneda), pct(m1?.cpm, m2?.cpm, true, 'CUR')) +
+        chip('Inversión (Mes)', fmoney(m1?.spend||0,moneda), pct(m1?.spend, m2?.spend, true, 'CUR'));
       if(w1) chips7D =
-        chip7d('7D · ThruPlays', fn(w1.thruplay||0), pct(w1.thruplay, w2?.thruplay)) +
-        chip7d('7D · Costo x ThruPlay', w1.cpr>0?fmoney(w1.cpr,moneda):'—', pct(w1.cpr, w2?.cpr, true)) +
-        chip7d('7D · CPM', fmoney(w1.cpm||0,moneda), pct(w1.cpm, w2?.cpm, true)) +
-        chip7d('7D · Inversión', fmoney(w1.spend||0,moneda), pct(w1.spend, w2?.spend, true));
+        chip7d('Últ. 7D · ThruPlays', fn(w1.thruplay||0), pct(w1.thruplay, w2?.thruplay, false, '')) +
+        chip7d('Últ. 7D · Costo x ThruPlay', w1.cpr>0?fmoney(w1.cpr,moneda):'—', pct(w1.cpr, w2?.cpr, true, 'CUR')) +
+        chip7d('Últ. 7D · Costo x CPM', fmoney(w1.cpm||0,moneda), pct(w1.cpm, w2?.cpm, true, 'CUR')) +
+        chip7d('Últ. 7D · Inversión', fmoney(w1.spend||0,moneda), pct(w1.spend, w2?.spend, true, 'CUR'));
       {const z=m2||{thruplay:0,cpr:0,cpm:0,spend:0};
       chipsM2 =
         chipM2('ThruPlays · Mes ant', fn(z.thruplay||0), pct(m1?.thruplay, z.thruplay)) +
         chipM2('Costo x ThruPlay · Ant', z.cpr>0?fmoney(z.cpr,moneda):'$0', pct(m1?.cpr, z.cpr, true)) +
-        chipM2('CPM · Mes ant', fmoney(z.cpm||0,moneda), pct(m1?.cpm, z.cpm, true)) +
+        chipM2('Costo x CPM · Ant', fmoney(z.cpm||0,moneda), pct(m1?.cpm, z.cpm, true)) +
         chipM2('Inversión · Mes ant', fmoney(z.spend||0,moneda), pct(m1?.spend, z.spend, true));}
     } else if(isVentas){
       const roasColor = m1?.roas>=2?'var(--green)':m1?.roas>=1?'var(--yellow)':'var(--red)';
       const ratioColor = m1?.invFact<=15?'var(--green)':m1?.invFact<=20?'var(--yellow)':'var(--red)';
       chipsM =
-        chip('Compras (Mes)', fn(m1?.purchases||m1?.result||0)) +
-        chip('Costo x Compra', m1?.cpr>0?fmoney(m1.cpr,moneda):'—') +
-        chip('ROAS', m1?.roas?`${m1.roas.toFixed(2)}x`:'—', '', roasColor) +
-        chip('Inv/Fact', m1?.invFact?`${m1.invFact.toFixed(1)}%`:'—', '', ratioColor) +
-        chip('Inversión (Mes)', fmoney(m1?.spend||0,moneda));
+        chip('Compras (Mes)', fn(m1?.purchases||m1?.result||0), pct(m1?.purchases||m1?.result, m2?.purchases||m2?.result, false, '')) +
+        chip('Costo x Compra', m1?.cpr>0?fmoney(m1.cpr,moneda):'—', pct(m1?.cpr, m2?.cpr, true, 'CUR')) +
+        chip('ROAS', m1?.roas?`${m1.roas.toFixed(2)}x`:'—', pct(m1?.roas, m2?.roas, false, ''), roasColor) +
+        chip('Inv/Fact', m1?.invFact?`${m1.invFact.toFixed(1)}%`:'—', pct(m1?.invFact, m2?.invFact, true, '%'), ratioColor) +
+        chip('Inversión (Mes)', fmoney(m1?.spend||0,moneda), pct(m1?.spend, m2?.spend, true, 'CUR'));
       if(w1) chips7D =
-        chip7d('7D · Compras', fn(w1.purchases||w1.result||0), pct(w1.purchases||w1.result, w2?.purchases||w2?.result)) +
-        chip7d('7D · Costo x Compra', w1.cpr>0?fmoney(w1.cpr,moneda):'—', pct(w1.cpr, w2?.cpr, true)) +
-        chip7d('7D · ROAS', w1.roas?`${w1.roas.toFixed(2)}x`:'—', '', w1.roas>=2?'var(--green)':w1.roas>=1?'var(--yellow)':'var(--red)') +
-        chip7d('7D · Inv/Fact', w1.invFact?`${w1.invFact.toFixed(1)}%`:'—', '', w1.invFact<=15?'var(--green)':w1.invFact<=20?'var(--yellow)':'var(--red)') +
-        chip7d('7D · Inversión', fmoney(w1.spend||0,moneda));
+        chip7d('Últ. 7D · Compras', fn(w1.purchases||w1.result||0), pct(w1.purchases||w1.result, w2?.purchases||w2?.result, false, '')) +
+        chip7d('Últ. 7D · Costo x Compra', w1.cpr>0?fmoney(w1.cpr,moneda):'—', pct(w1.cpr, w2?.cpr, true, 'CUR')) +
+        chip7d('Últ. 7D · ROAS', w1.roas?`${w1.roas.toFixed(2)}x`:'—', '', w1.roas>=2?'var(--green)':w1.roas>=1?'var(--yellow)':'var(--red)') +
+        chip7d('Últ. 7D · Inv/Fact', w1.invFact?`${w1.invFact.toFixed(1)}%`:'—', '', w1.invFact<=15?'var(--green)':w1.invFact<=20?'var(--yellow)':'var(--red)') +
+        chip7d('Últ. 7D · Inversión', fmoney(w1.spend||0,moneda));
       {const z=m2||{purchases:0,result:0,cpr:0,roas:null,invFact:null,spend:0};
       chipsM2 =
         chipM2('Compras · Mes ant', fn(z.purchases||z.result||0), pct(m1?.purchases||m1?.result, z.purchases||z.result)) +
@@ -2474,33 +2718,33 @@ function renderObjBlocks(blocks, acc){
     } else if(isReach||(isRecon&&!isImpressions)){
       const freqColor = m1?.freq>=5?'var(--red)':m1?.freq>=3.5?'var(--yellow)':'var(--green)';
       chipsM =
-        chip('Alcance (Mes)', fn(m1?.reach||0)) +
-        chip('CPM', fmoney(m1?.cpm||0,moneda)) +
+        chip('Alcance (Mes)', fn(m1?.reach||0), pct(m1?.reach, m2?.reach, false, '')) +
+        chip('Costo x CPM', fmoney(m1?.cpm||0,moneda), pct(m1?.cpm, m2?.cpm, true, 'CUR')) +
         chip('Frecuencia', m1?.freq?.toFixed(1)||'—', '', freqColor) +
-        chip('Inversión (Mes)', fmoney(m1?.spend||0,moneda));
+        chip('Inversión (Mes)', fmoney(m1?.spend||0,moneda), pct(m1?.spend, m2?.spend, true, 'CUR'));
       if(w1) chips7D =
-        chip7d('7D · Alcance', fn(w1.reach||0), pct(w1.reach, w2?.reach)) +
-        chip7d('7D · CPM', fmoney(w1.cpm||0,moneda), pct(w1.cpm, w2?.cpm, true)) +
-        chip7d('7D · Frecuencia', w1.freq?.toFixed(1)||'—', '', w1.freq>=5?'var(--red)':w1.freq>=3.5?'var(--yellow)':'var(--green)') +
-        chip7d('7D · Inversión', fmoney(w1.spend||0,moneda), pct(w1.spend, w2?.spend, true));
+        chip7d('Últ. 7D · Alcance', fn(w1.reach||0), pct(w1.reach, w2?.reach, false, '')) +
+        chip7d('Últ. 7D · Costo x CPM', fmoney(w1.cpm||0,moneda), pct(w1.cpm, w2?.cpm, true, 'CUR')) +
+        chip7d('Últ. 7D · Frecuencia', w1.freq?.toFixed(1)||'—', '', w1.freq>=5?'var(--red)':w1.freq>=3.5?'var(--yellow)':'var(--green)') +
+        chip7d('Últ. 7D · Inversión', fmoney(w1.spend||0,moneda), pct(w1.spend, w2?.spend, true, 'CUR'));
       {const z=m2||{reach:0,cpm:0,freq:0,spend:0};
       chipsM2 =
         chipM2('Alcance · Mes ant', fn(z.reach||0), pct(m1?.reach, z.reach)) +
-        chipM2('CPM · Mes ant', fmoney(z.cpm||0,moneda), pct(m1?.cpm, z.cpm, true)) +
+        chipM2('Costo x CPM · Ant', fmoney(z.cpm||0,moneda), pct(m1?.cpm, z.cpm, true)) +
         chipM2('Frecuencia · Mes ant', z.freq?.toFixed(1)||'0') +
         chipM2('Inversión · Mes ant', fmoney(z.spend||0,moneda), pct(m1?.spend, z.spend, true));}
     } else if(isLinkClicks){
       const ctrColor = m1?.ctr>=1?'var(--green)':m1?.ctr>=0.5?'var(--yellow)':'var(--red)';
       chipsM =
-        chip('Clics (Mes)', fn(m1?.clicks||0)) +
-        chip('CTR', `${m1?.ctr?.toFixed(2)||'0'}%`, '', ctrColor) +
-        chip('Costo x Clic', fmoney(m1?.cpc||0,moneda)) +
-        chip('Inversión (Mes)', fmoney(m1?.spend||0,moneda));
+        chip('Clics (Mes)', fn(m1?.clicks||0), pct(m1?.clicks, m2?.clicks, false, '')) +
+        chip('CTR', `${m1?.ctr?.toFixed(2)||'0'}%`, pct(m1?.ctr, m2?.ctr, false, '%'), ctrColor) +
+        chip('Costo x Clic', fmoney(m1?.cpc||0,moneda), pct(m1?.cpc, m2?.cpc, true, 'CUR')) +
+        chip('Inversión (Mes)', fmoney(m1?.spend||0,moneda), pct(m1?.spend, m2?.spend, true, 'CUR'));
       if(w1) chips7D =
-        chip7d('7D · Clics', fn(w1.clicks||0), pct(w1.clicks, w2?.clicks)) +
-        chip7d('7D · CTR', `${w1.ctr?.toFixed(2)||'0'}%`, pct(w1.ctr, w2?.ctr), w1.ctr>=1?'var(--green)':w1.ctr>=0.5?'var(--yellow)':'var(--red)') +
-        chip7d('7D · Costo x Clic', fmoney(w1.cpc||0,moneda), pct(w1.cpc, w2?.cpc, true)) +
-        chip7d('7D · Inversión', fmoney(w1.spend||0,moneda), pct(w1.spend, w2?.spend, true));
+        chip7d('Últ. 7D · Clics', fn(w1.clicks||0), pct(w1.clicks, w2?.clicks, false, '')) +
+        chip7d('Últ. 7D · CTR', `${w1.ctr?.toFixed(2)||'0'}%`, pct(w1.ctr, w2?.ctr, false, '%'), w1.ctr>=1?'var(--green)':w1.ctr>=0.5?'var(--yellow)':'var(--red)') +
+        chip7d('Últ. 7D · Costo x Clic', fmoney(w1.cpc||0,moneda), pct(w1.cpc, w2?.cpc, true, 'CUR')) +
+        chip7d('Últ. 7D · Inversión', fmoney(w1.spend||0,moneda), pct(w1.spend, w2?.spend, true, 'CUR'));
       {const z=m2||{clicks:0,ctr:0,cpc:0,spend:0};
       chipsM2 =
         chipM2('Clics · Mes ant', fn(z.clicks||0), pct(m1?.clicks, z.clicks)) +
@@ -2511,13 +2755,13 @@ function renderObjBlocks(blocks, acc){
       // Conversaciones / mensajes — og: CONVERSATIONS, REPLIES, etc.
       const convRl = m1?.rl||'Conversaciones';
       chipsM =
-        chip(`${convRl} (Mes)`, fn(m1?.result||0)) +
-        chip(`Costo x ${convRl}`, m1?.cpr>0?fmoney(m1.cpr,moneda):'—') +
-        chip('Inversión (Mes)', fmoney(m1?.spend||0,moneda));
+        chip(`${convRl} (Mes)`, fn(m1?.result||0), pct(m1?.result, m2?.result, false, '')) +
+        chip(`Costo x ${convRl}`, m1?.cpr>0?fmoney(m1.cpr,moneda):'—', pct(m1?.cpr, m2?.cpr, true, 'CUR')) +
+        chip('Inversión (Mes)', fmoney(m1?.spend||0,moneda), pct(m1?.spend, m2?.spend, true, 'CUR'));
       if(w1) chips7D =
-        chip7d(`7D · ${w1.rl||convRl}`, fn(w1.result||0), pct(w1.result, w2?.result)) +
-        chip7d(`7D · Costo x ${w1.rl||convRl}`, w1.cpr>0?fmoney(w1.cpr,moneda):'—', pct(w1.cpr, w2?.cpr, true)) +
-        chip7d('7D · Inversión', fmoney(w1.spend||0,moneda), pct(w1.spend, w2?.spend, true));
+        chip7d(`7D · ${w1.rl||convRl}`, fn(w1.result||0), pct(w1.result, w2?.result, false, '')) +
+        chip7d(`7D · Costo x ${w1.rl||convRl}`, w1.cpr>0?fmoney(w1.cpr,moneda):'—', pct(w1.cpr, w2?.cpr, true, 'CUR')) +
+        chip7d('Últ. 7D · Inversión', fmoney(w1.spend||0,moneda), pct(w1.spend, w2?.spend, true, 'CUR'));
       {const z=m2||{result:0,rl:'',cpr:0,spend:0};
       chipsM2 =
         chipM2(`${z.rl||convRl} · Mes ant`, fn(z.result||0), pct(m1?.result, z.result)) +
@@ -2527,13 +2771,13 @@ function renderObjBlocks(blocks, acc){
       // Leads puros — og: LEAD_GENERATION, QUALITY_LEAD
       const leadRl = m1?.rl||'Leads';
       chipsM =
-        chip(`${leadRl} (Mes)`, fn(m1?.result||0)) +
-        chip(`Costo x ${leadRl}`, m1?.cpr>0?fmoney(m1.cpr,moneda):'—') +
-        chip('Inversión (Mes)', fmoney(m1?.spend||0,moneda));
+        chip(`${leadRl} (Mes)`, fn(m1?.result||0), pct(m1?.result, m2?.result, false, '')) +
+        chip(`Costo x ${leadRl}`, m1?.cpr>0?fmoney(m1.cpr,moneda):'—', pct(m1?.cpr, m2?.cpr, true, 'CUR')) +
+        chip('Inversión (Mes)', fmoney(m1?.spend||0,moneda), pct(m1?.spend, m2?.spend, true, 'CUR'));
       if(w1) chips7D =
-        chip7d(`7D · ${w1.rl||leadRl}`, fn(w1.result||0), pct(w1.result, w2?.result)) +
-        chip7d(`7D · Costo x ${w1.rl||leadRl}`, w1.cpr>0?fmoney(w1.cpr,moneda):'—', pct(w1.cpr, w2?.cpr, true)) +
-        chip7d('7D · Inversión', fmoney(w1.spend||0,moneda), pct(w1.spend, w2?.spend, true));
+        chip7d(`7D · ${w1.rl||leadRl}`, fn(w1.result||0), pct(w1.result, w2?.result, false, '')) +
+        chip7d(`7D · Costo x ${w1.rl||leadRl}`, w1.cpr>0?fmoney(w1.cpr,moneda):'—', pct(w1.cpr, w2?.cpr, true, 'CUR')) +
+        chip7d('Últ. 7D · Inversión', fmoney(w1.spend||0,moneda), pct(w1.spend, w2?.spend, true, 'CUR'));
       {const z=m2||{result:0,rl:'',cpr:0,spend:0};
       chipsM2 =
         chipM2(`${z.rl||leadRl} · Mes ant`, fn(z.result||0), pct(m1?.result, z.result)) +
@@ -2542,15 +2786,15 @@ function renderObjBlocks(blocks, acc){
     } else if(isLpv){
       // Landing page views — og: LANDING_PAGE_VIEWS
       chipsM =
-        chip('Visitas Landing (Mes)', fn(m1?.result||m1?.lpv||0)) +
-        chip('Costo x Visita', m1?.cpr>0?fmoney(m1.cpr,moneda):'—') +
-        chip('CTR', `${m1?.ctr?.toFixed(2)||'0'}%`, '', m1?.ctr>=1?'var(--green)':m1?.ctr>=0.5?'var(--yellow)':'var(--red)') +
-        chip('Inversión (Mes)', fmoney(m1?.spend||0,moneda));
+        chip('Visitas Landing (Mes)', fn(m1?.result||m1?.lpv||0), pct(m1?.result||m1?.lpv, m2?.result||m2?.lpv, false, '')) +
+        chip('Costo x Visita', m1?.cpr>0?fmoney(m1.cpr,moneda):'—', pct(m1?.cpr, m2?.cpr, true, 'CUR')) +
+        chip('CTR', `${m1?.ctr?.toFixed(2)||'0'}%`, pct(m1?.ctr, m2?.ctr, false, '%'), m1?.ctr>=1?'var(--green)':m1?.ctr>=0.5?'var(--yellow)':'var(--red)') +
+        chip('Inversión (Mes)', fmoney(m1?.spend||0,moneda), pct(m1?.spend, m2?.spend, true, 'CUR'));
       if(w1) chips7D =
-        chip7d('7D · Visitas Landing', fn(w1.result||w1.lpv||0), pct(w1.result||w1.lpv, w2?.result||w2?.lpv)) +
-        chip7d('7D · Costo x Visita', w1.cpr>0?fmoney(w1.cpr,moneda):'—', pct(w1.cpr, w2?.cpr, true)) +
-        chip7d('7D · CTR', `${w1.ctr?.toFixed(2)||'0'}%`, pct(w1.ctr, w2?.ctr), w1.ctr>=1?'var(--green)':w1.ctr>=0.5?'var(--yellow)':'var(--red)') +
-        chip7d('7D · Inversión', fmoney(w1.spend||0,moneda), pct(w1.spend, w2?.spend, true));
+        chip7d('Últ. 7D · Visitas Landing', fn(w1.result||w1.lpv||0), pct(w1.result||w1.lpv, w2?.result||w2?.lpv, false, '')) +
+        chip7d('Últ. 7D · Costo x Visita', w1.cpr>0?fmoney(w1.cpr,moneda):'—', pct(w1.cpr, w2?.cpr, true, 'CUR')) +
+        chip7d('Últ. 7D · CTR', `${w1.ctr?.toFixed(2)||'0'}%`, pct(w1.ctr, w2?.ctr, false, '%'), w1.ctr>=1?'var(--green)':w1.ctr>=0.5?'var(--yellow)':'var(--red)') +
+        chip7d('Últ. 7D · Inversión', fmoney(w1.spend||0,moneda), pct(w1.spend, w2?.spend, true, 'CUR'));
       {const z=m2||{result:0,lpv:0,cpr:0,ctr:0,spend:0};
       chipsM2 =
         chipM2('Visitas Landing · Mes ant', fn(z.result||z.lpv||0), pct(m1?.result||m1?.lpv, z.result||z.lpv)) +
@@ -2560,13 +2804,13 @@ function renderObjBlocks(blocks, acc){
     } else if(isProfile){
       // Visitas al perfil — og: PROFILE_VISIT
       chipsM =
-        chip('Visitas Perfil (Mes)', fn(m1?.result||m1?.profileVisit||0)) +
-        chip('Costo x Visita', m1?.cpr>0?fmoney(m1.cpr,moneda):'—') +
-        chip('Inversión (Mes)', fmoney(m1?.spend||0,moneda));
+        chip('Visitas Perfil (Mes)', fn(m1?.result||m1?.profileVisit||0), pct(m1?.result||m1?.profileVisit, m2?.result||m2?.profileVisit, false, '')) +
+        chip('Costo x Visita', m1?.cpr>0?fmoney(m1.cpr,moneda):'—', pct(m1?.cpr, m2?.cpr, true, 'CUR')) +
+        chip('Inversión (Mes)', fmoney(m1?.spend||0,moneda), pct(m1?.spend, m2?.spend, true, 'CUR'));
       if(w1) chips7D =
-        chip7d('7D · Visitas Perfil', fn(w1.result||w1.profileVisit||0), pct(w1.result||w1.profileVisit, w2?.result||w2?.profileVisit)) +
-        chip7d('7D · Costo x Visita', w1.cpr>0?fmoney(w1.cpr,moneda):'—', pct(w1.cpr, w2?.cpr, true)) +
-        chip7d('7D · Inversión', fmoney(w1.spend||0,moneda), pct(w1.spend, w2?.spend, true));
+        chip7d('Últ. 7D · Visitas Perfil', fn(w1.result||w1.profileVisit||0), pct(w1.result||w1.profileVisit, w2?.result||w2?.profileVisit, false, '')) +
+        chip7d('Últ. 7D · Costo x Visita', w1.cpr>0?fmoney(w1.cpr,moneda):'—', pct(w1.cpr, w2?.cpr, true, 'CUR')) +
+        chip7d('Últ. 7D · Inversión', fmoney(w1.spend||0,moneda), pct(w1.spend, w2?.spend, true, 'CUR'));
       {const z=m2||{result:0,profileVisit:0,cpr:0,spend:0};
       chipsM2 =
         chipM2('Visitas Perfil · Mes ant', fn(z.result||z.profileVisit||0), pct(m1?.result||m1?.profileVisit, z.result||z.profileVisit)) +
@@ -2574,38 +2818,26 @@ function renderObjBlocks(blocks, acc){
         chipM2('Inversión · Mes ant', fmoney(z.spend||0,moneda), pct(m1?.spend, z.spend, true));}
     } else {
       // Fallback genérico — usa rl de extract() que ya leyó el og correctamente
+      const RL_FB={'actions:offsite_conversion.fb_pixel_purchase':'Compras','offsite_conversion.fb_pixel_purchase':'Compras','purchase':'Compras','actions:offsite_conversion.fb_pixel_lead':'Leads','offsite_conversion.fb_pixel_lead':'Leads','lead':'Leads','onsite_conversion.lead_grouped':'Leads','actions:onsite_conversion.messaging_conversation_started_7d':'Conversaciones','onsite_conversion.messaging_conversation_started_7d':'Conversaciones','profile_visit_view':'Visitas al perfil','video_thruplay_watched_actions':'ThruPlays','actions:link_click':'Clics','link_click':'Clics','landing_page_view':'Visitas landing'};
+      const mapRlFb = v => RL_FB[v]||RL_FB[(v||'').toLowerCase()]||v||'Resultados';
+      const rlFb = mapRlFb(rl);
       chipsM =
-        chip(`${rl} (Mes)`, fn(m1?.result||0)) +
-        chip(`Costo x ${rl}`, m1?.cpr>0?fmoney(m1.cpr,moneda):'—') +
-        chip('Inversión (Mes)', fmoney(m1?.spend||0,moneda));
+        chip(`${rlFb} (Mes)`, fn(m1?.result||0), pct(m1?.result, m2?.result, false, '')) +
+        chip(`Costo x ${rlFb}`, m1?.cpr>0?fmoney(m1.cpr,moneda):'—', pct(m1?.cpr, m2?.cpr, true, 'CUR')) +
+        chip('Inversión (Mes)', fmoney(m1?.spend||0,moneda), pct(m1?.spend, m2?.spend, true, 'CUR'));
       if(w1) chips7D =
-        chip7d(`7D · ${w1.rl||rl}`, fn(w1.result||0), pct(w1.result, w2?.result)) +
-        chip7d(`7D · Costo x ${w1.rl||rl}`, w1.cpr>0?fmoney(w1.cpr,moneda):'—', pct(w1.cpr, w2?.cpr, true)) +
-        chip7d('7D · Inversión', fmoney(w1.spend||0,moneda), pct(w1.spend, w2?.spend, true));
+        chip7d(`7D · ${mapRlFb(w1.rl||rl)}`, fn(w1.result||0), pct(w1.result, w2?.result, false, '')) +
+        chip7d(`7D · Costo x ${mapRlFb(w1.rl||rl)}`, w1.cpr>0?fmoney(w1.cpr,moneda):'—', pct(w1.cpr, w2?.cpr, true, 'CUR')) +
+        chip7d('Últ. 7D · Inversión', fmoney(w1.spend||0,moneda), pct(w1.spend, w2?.spend, true, 'CUR'));
       {const z=m2||{result:0,rl:'',cpr:0,spend:0};
       chipsM2 =
-        chipM2(`${z.rl||rl} · Mes ant`, fn(z.result||0), pct(m1?.result, z.result)) +
-        chipM2(`Costo x ${z.rl||rl} · Ant`, z.cpr>0?fmoney(z.cpr,moneda):'$0', pct(m1?.cpr, z.cpr, true)) +
+        chipM2(`${mapRlFb(z.rl||rl)} · Mes ant`, fn(z.result||0), pct(m1?.result, z.result)) +
+        chipM2(`Costo x ${mapRlFb(z.rl||rl)} · Ant`, z.cpr>0?fmoney(z.cpr,moneda):'$0', pct(m1?.cpr, z.cpr, true)) +
         chipM2('Inversión · Mes ant', fmoney(z.spend||0,moneda), pct(m1?.spend, z.spend, true));}
     }
 
-    // ── CAJA 2: ratio/ROAS para ventas, sparkline para el resto ──
+    // ── CAJA 2: ratio/ROAS para ventas únicamente ──
     let kpiBox2 = '';
-    const sparkHtml = dailyData?.length
-      ? `<div class="bcard" style="padding:0 0 8px;">${renderSparkline(dailyData, obj, og, moneda)}</div>`
-      : '';
-    if(isVentas && m1?.invFact>0){
-      const r=m1.invFact; const col=r<=15?'var(--green)':r<=20?'var(--yellow)':'var(--red)';
-      const lbl=r<=10?'PERFECTO':r<=15?'SALUDABLE':r<=20?'ATENCIÓN':'PROBLEMA';
-      const bc=r<=15?'pbg':r<=20?'pby':'pbr';
-      kpiBox2=`<div class="bcard">
-        <div class="blabel">Ratio Inversión / Facturación</div>
-        <div class="bnums"><div class="bmain" style="color:${col}">${r.toFixed(1)}%</div><div class="bsub" style="color:${col};font-family:var(--font-display);font-weight:700;font-size:11px;letter-spacing:1px;text-transform:uppercase;">${lbl}</div></div>
-        <div class="pw"><div class="pb ${bc}" style="width:${Math.min(r/25*100,100)}%"></div></div>
-        <div class="bdet"><span>✓≤10% perfecto · ✓≤15% ok · ⚡15–20% atención · ⚠>20% problema</span></div>
-        <div style="margin-top:8px;font-size:11px;color:var(--muted)">ROAS: <strong style="color:var(--navy)">${m1.roas?.toFixed(2)||'—'}x</strong> · Ventas: <strong style="color:var(--navy)">${fmoney(m1.rv||0,moneda)}</strong></div>
-      </div>`;
-    }
 
     // ── CAJA 1: vacía (presupuesto se muestra una sola vez arriba de todos los bloques)
     let invBox = '';
@@ -2617,7 +2849,7 @@ function renderObjBlocks(blocks, acc){
     </div>`;
     const diagM = b.diagM||b.diag;
     const diagW = b.diagW;
-    const diagHtml = [
+    const diagItems = [
       ...(diagM?.diags||[]).map(diagHtmlFor),
       ...(diagW?.diags||[]).filter(d=>!diagM?.diags?.find(m=>m.title===d.title)).map(d=>`
         <div class="obj-diag obj-diag-${d.type}" style="opacity:0.8;">
@@ -2625,7 +2857,13 @@ function renderObjBlocks(blocks, acc){
           <span style="font-weight:600;font-size:12px;">${d.title}</span>
           <span style="font-size:11px;color:var(--muted);margin-left:8px;">${d.detail}</span>
         </div>`)
-    ].join('');
+    ];
+    const diagHtml = diagItems.length > 0
+      ? `<div style="margin:8px 0 0;">
+          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;padding:0 14px 4px;font-weight:600;">Diagnóstico · ${meta.parentLabel}${meta.label !== meta.parentLabel ? ' · '+meta.label : ''}</div>
+          ${diagItems.join('')}
+        </div>`
+      : '';
 
     const badConfigHtml = badConfig?`<div class="obj-badconfig"><span style="font-size:13px;font-weight:600;">${badConfig.msg}</span></div>`:'';
     // Título = objetivo de campaña (parentLabel), subtítulo = optimization_goal (label)
@@ -2641,8 +2879,7 @@ function renderObjBlocks(blocks, acc){
       ${badConfigHtml}
       <div class="obj-kpis">${chipsM}</div>
       ${chips7D?`<div class="obj-kpis">${chips7D}</div>`:''}
-      ${chipsM2?`<div class="obj-kpis">${chipsM2}</div>`:''}
-      ${(kpiBox2||sparkHtml)?`<div class="bgrid" style="margin:12px 0 4px;">${kpiBox2||(!isVentas?sparkHtml:'')}</div>`:''}
+      ${kpiBox2?`<div class="bgrid" style="margin:12px 0 4px;">${kpiBox2}</div>`:''}
       ${diagHtml}
     </div>`;
   }).join('');
@@ -2815,7 +3052,11 @@ function cerebro(acc, w1, w2, m1, m2, wD, mD, historial, perfil, objBlocks=[]){
   const obj = acc.objetivo;
   const moneda = acc.moneda || 'ARS';
   const useObj = obj==='ventas_leads'?'ventas':obj;
-  const allDiags = [...(wD?.diags||[]), ...(mD?.diags||[])];
+  // Si hay múltiples bloques, usar sus diagnósticos individuales
+  const multiObj = objBlocks.length > 1;
+  const allDiags = multiObj
+    ? objBlocks.flatMap(b=>[...(b.diagW?.diags||[]),...(b.diagM?.diags||[])])
+    : [...(wD?.diags||[]), ...(mD?.diags||[])];
   const crits = allDiags.filter(d=>d.type==='critical');
   const warns = allDiags.filter(d=>d.type==='warning');
   const positives = allDiags.filter(d=>d.type==='positive');
@@ -2831,44 +3072,77 @@ function cerebro(acc, w1, w2, m1, m2, wD, mD, historial, perfil, objBlocks=[]){
       : 'Sin datos suficientes para generar diagnóstico. Verificá que la cuenta tenga actividad en los períodos analizados.';
     diagnostico = noDataMsg;
   } else {
-    // Diagnóstico ejecutivo narrativo
+    // Diagnóstico ejecutivo narrativo — estratégico y basado en datos
     const estadoTexto = {
-      critical: `La cuenta de ${acc.cliente} está en zona crítica y necesita intervención esta semana.`,
-      warning: `La cuenta de ${acc.cliente} muestra señales de alerta que conviene atender antes de que impacten en el costo por resultado.`,
-      ok: `La cuenta de ${acc.cliente} opera de forma saludable en los períodos analizados — las métricas están dentro de rangos normales.`,
-      unknown: `La cuenta de ${acc.cliente} es de tipo branding. ${objBlocks.length>0?'Objetivos activos: '+objBlocks.map(b=>b.meta?.label||b.obj).join(', ')+'.':''} El análisis evalúa eficiencia de alcance, frecuencia y rendimiento por tipo de campaña.`
+      critical: `La cuenta de ${acc.cliente} requiere intervención urgente esta semana.`,
+      warning: `La cuenta de ${acc.cliente} muestra señales de alerta que conviene resolver antes de que escalen.`,
+      ok: `La cuenta de ${acc.cliente} opera dentro de rangos normales en los períodos analizados.`,
+      unknown: `La cuenta de ${acc.cliente} opera con múltiples objetivos activos.`
     };
     diagnostico = estadoTexto[risk] || estadoTexto.unknown;
 
-    // Contexto de inversión y resultados
-    if(m1?.spend){
-      const spendDelta = (m1.spend>0 && m2?.spend>0) ? ((m1.spend-m2.spend)/m2.spend)*100 : null;
-      diagnostico += ` Inversión del mes: ${fmoney(m1.spend, moneda)}${spendDelta!==null?` (${spendDelta>0?'+':''}${spendDelta.toFixed(1)}% vs mismo período mes anterior)`:''}.`;
+    // Análisis estratégico por bloques — qué está pasando realmente
+    if(multiObj && objBlocks.length > 0){
+      const analisisBlocks = [];
+      for(const block of objBlocks){
+        const bM1 = block.m1, bM2 = block.m2, bW1 = block.w1, bW2 = block.w2;
+        const bLabel = block.meta?.label || block.meta?.parentLabel || block.obj;
+        if(!bM1) continue;
+        const resChg = (bM1.result>0 && bM2?.result>0) ? ((bM1.result-bM2.result)/bM2.result*100) : null;
+        const cprChg = (bM1.cpr>0 && bM2?.cpr>0) ? ((bM1.cpr-bM2.cpr)/bM2.cpr*100) : null;
+        const spendChg = (bM1.spend>0 && bM2?.spend>0) ? ((bM1.spend-bM2.spend)/bM2.spend*100) : null;
+        const rl = bM1.rl || 'resultados';
+        let nota = '';
+        if(resChg!==null && resChg < -10){
+          if(spendChg!==null && spendChg < -10 && Math.abs(spendChg) >= Math.abs(resChg)*0.7)
+            nota = `${bLabel}: ${fn(bM1.result)} ${rl} (\u2193${Math.abs(resChg).toFixed(0)}% vs mes ant) \u2014 la ca\u00edda es proporcional al recorte de inversi\u00f3n (${spendChg.toFixed(0)}%), la eficiencia se mantiene.`;
+          else if(cprChg!==null && cprChg > 15)
+            nota = `${bLabel}: ${fn(bM1.result)} ${rl} (\u2193${Math.abs(resChg).toFixed(0)}%) con CPR deteriorado ${cprChg.toFixed(0)}% \u2014 problema de eficiencia real, no solo de presupuesto.`;
+          else
+            nota = `${bLabel}: ${fn(bM1.result)} ${rl} (\u2193${Math.abs(resChg).toFixed(0)}% vs mes ant) \u2014 investigar causa: presupuesto, subasta o creativos.`;
+        } else if(resChg!==null && resChg > 10){
+          nota = `${bLabel}: ${fn(bM1.result)} ${rl} (\u2191${resChg.toFixed(0)}% vs mes ant)${cprChg!==null && cprChg<-5 ? ` con CPR mejor ${Math.abs(cprChg).toFixed(0)}%` : ''} \u2014 rendimiento positivo.`;
+        } else if(bM1.result>0){
+          nota = `${bLabel}: ${fn(bM1.result)} ${rl}${bM1.cpr>0?` a ${fmoney(bM1.cpr,moneda)} c/u`:''} \u2014 estable.`;
+        }
+        if(nota) analisisBlocks.push(nota);
+      }
+      if(analisisBlocks.length) diagnostico += ' ' + analisisBlocks.join(' ');
+    } else {
+      // Cuenta mono-objetivo
+      if(m1?.spend){
+        const spendDelta = (m1.spend>0 && m2?.spend>0) ? ((m1.spend-m2.spend)/m2.spend)*100 : null;
+        diagnostico += ` Inversi\u00f3n del mes: ${fmoney(m1.spend, moneda)}${spendDelta!==null?` (${spendDelta>0?'+':''}${spendDelta.toFixed(1)}% vs mismo per\u00edodo mes anterior)`:''}.`;
+      }
+      if(m1?.result && m1.result>0){
+        const resDelta = (m2?.result>0) ? ((m1.result-m2.result)/m2.result)*100 : null;
+        diagnostico += ` ${m1.rl} este mes: ${fn(m1.result)}${resDelta!==null?`, ${resDelta>0?'\u2191':'\u2193'} ${Math.abs(resDelta).toFixed(1)}% vs mismo per\u00edodo mes anterior`:''}.`;
+      }
+      if(m1?.cpr && m1.cpr>0){
+        const cprDelta = (m2?.cpr>0) ? ((m1.cpr-m2.cpr)/m2.cpr)*100 : null;
+        const cprTend = cprDelta!==null ? (cprDelta<0 ? ` mejorando ${Math.abs(cprDelta).toFixed(1)}% vs mes anterior` : ` deteriorado ${cprDelta.toFixed(1)}% vs mes anterior`) : '';
+        diagnostico += ` Costo por ${rlabel.toLowerCase()}: ${fmoney(m1.cpr, moneda)}${cprTend}.`;
+      }
+      if(useObj==='ventas' && m1?.invFact){
+        const r=m1.invFact;
+        const interp = r<=10?'nivel \u00f3ptimo para escalar':r<=15?'rango saludable, monitorear':r<=20?'zona de atenci\u00f3n \u2014 cada punto m\u00e1s erosiona el margen':'zona cr\u00edtica \u2014 la pauta est\u00e1 consumiendo demasiado del margen';
+        diagnostico += ` Ratio inversi\u00f3n/facturaci\u00f3n: ${r.toFixed(1)}% (${interp}).`;
+      }
     }
-    if(m1?.result && m1.result>0){
-      const resDelta = (m2?.result>0) ? ((m1.result-m2.result)/m2.result)*100 : null;
-      diagnostico += ` ${m1.rl} este mes: ${fn(m1.result)}${resDelta!==null?`, ${resDelta>0?'↑':'↓'} ${Math.abs(resDelta).toFixed(1)}% vs mismo período mes anterior`:''}.`;
-    }
-    if(m1?.cpr && m1.cpr>0){
-      const cprDelta = (m2?.cpr>0) ? ((m1.cpr-m2.cpr)/m2.cpr)*100 : null;
-      const cprTendencia = cprDelta!==null ? (cprDelta<0 ? ` mejorando ${Math.abs(cprDelta).toFixed(1)}% vs mismo período mes anterior` : ` deteriorado ${cprDelta.toFixed(1)}% vs mismo período mes anterior`) : '';
-      diagnostico += ` Costo por ${rlabel.toLowerCase()}: ${fmoney(m1.cpr, moneda)}${cprTendencia}.`;
-    }
-    // Ratio inv/fact con interpretación
-    if(useObj==='ventas' && m1?.invFact){
-      const r=m1.invFact;
-      const interp = r<=10?'nivel óptimo para escalar':r<=15?'rango saludable, monitorear':r<=20?'zona de atención — cada punto más erosiona el margen':'zona crítica — la pauta está consumiendo demasiado del margen del negocio';
-      diagnostico += ` Ratio inversión/facturación: ${r.toFixed(1)}% (${interp}).`;
-    }
-    // Contexto de perfil
-    if(perfil?.industria){
-      diagnostico += ` Vertical: ${perfil.industria}.`;
-    }
-    // Síntesis de problemas
+    // Alertas accionables
     if(crits.length>0){
-      diagnostico += ` Puntos críticos detectados: ${crits.map(d=>d.title).join('; ')}.`;
+      const critActions = crits.map(d=>{
+        if(d.title.includes('Frecuencia')||d.title.includes('Fatiga')) return `\ud83d\udd34 Rotar creativos urgente \u2014 frecuencia cr\u00edtica (${d.title.match(/[\d.]+/)?.[0]||''}x).`;
+        if(d.title.includes('0 compras')) return `\ud83d\udd34 Sin conversiones con inversi\u00f3n activa \u2014 verificar pixel y landing.`;
+        return `\ud83d\udd34 ${d.title}.`;
+      });
+      diagnostico += ' ' + critActions.join(' ');
     } else if(warns.length>0 && risk==='warning'){
-      diagnostico += ` Alertas a monitorear: ${warns.map(d=>d.title).join('; ')}.`;
+      const warnActions = warns.slice(0,2).map(d=>{
+        if(d.title.includes('Frecuencia')||d.title.includes('Fatiga')) return `\u26a1 Frecuencia en ${d.title.match(/[\d.]+/)?.[0]||''}x \u2014 preparar variantes creativas antes de que impacte el CTR.`;
+        return `\u26a1 ${d.title}.`;
+      });
+      diagnostico += ' ' + warnActions.join(' ');
     }
   }
 
@@ -2988,14 +3262,63 @@ function cerebro(acc, w1, w2, m1, m2, wD, mD, historial, perfil, objBlocks=[]){
   }
 
   // ── PRÓXIMOS PASOS (con justificación estratégica profunda) ──
-  const pasos = [];
+  const pasosSemanales = [];
+  const pasosMensuales = [];
 
-  // Saturación de audiencia
+  // ── MULTI-OBJETIVO: generar pasos diferenciados por bloque ──
+  if(multiObj && objBlocks.length > 0){
+    for(const block of objBlocks){
+      const bLabel = block.meta?.parentLabel || block.obj;
+      const bOgLabel = block.meta?.label || '';
+      const bTitle = bOgLabel && bOgLabel !== bLabel ? `${bLabel} · ${bOgLabel}` : bLabel;
+      const bDiags = [...(block.diagW?.diags||[]), ...(block.diagM?.diags||[])];
+      const bDiagsW = block.diagW?.diags||[];
+      const bDiagsM = block.diagM?.diags||[];
+      const bW1 = block.w1, bM1 = block.m1, bM2 = block.m2;
+
+      // ── Pasos SEMANALES por bloque ──
+      const bFreq = bDiagsW.find(d=>d.title.includes('Frecuencia')||d.title.includes('Fatiga'));
+      if(bFreq){
+        const fv = bW1?.freq?.toFixed(1)||'—';
+        pasosSemanales.push(`🔴 ${bTitle}: Rotar creativos — frecuencia ${fv}x. La audiencia ve el mismo anuncio demasiadas veces, Meta sube el CPM. Preparar 2-3 variantes nuevas.`);
+      }
+      const bCTR = bDiagsW.find(d=>d.title.includes('CTR'));
+      if(bCTR && block.obj==='trafico'){
+        pasosSemanales.push(`⚡ ${bTitle}: ${bCTR.title}. ${bCTR.detail||''}`);
+      }
+      const bCPRw = bDiagsW.find(d=>(d.title.includes('CPR')||d.title.includes('Costo por')) && d.type==='critical');
+      if(bCPRw){
+        pasosSemanales.push(`🔴 ${bTitle}: ${bCPRw.title}. Pausar conjuntos con peor costo y reasignar a los más eficientes.`);
+      }
+      if(bW1?.result===0 && bW1?.spend>0){
+        pasosSemanales.push(`🔴 ${bTitle}: sin resultados esta semana con ${fmoney(bW1.spend,moneda)} invertidos. Revisar conjuntos activos.`);
+      }
+      if(pasosSemanales.filter(p=>p.includes(bTitle)).length===0 && bW1?.result>0){
+        const cprStr = bW1.cpr>0 ? ` · CPR: ${fmoney(bW1.cpr,moneda)}` : '';
+        pasosSemanales.push(`✓ ${bTitle}: semana estable. ${fn(bW1.result)} ${bM1?.rl||'resultados'}${cprStr}.`);
+      }
+
+      // ── Pasos MENSUALES por bloque ──
+      const bCPRm = bDiagsM.find(d=>(d.title.includes('CPR')||d.title.includes('Costo por')) && d.type!=='positive');
+      if(bCPRm){
+        pasosMensuales.push(`⚡ ${bTitle}: ${bCPRm.title}. ${bCPRm.detail||''}`);
+      }
+      const bRes = bDiagsM.find(d=>d.title.includes('Volumen') && d.type==='warning');
+      if(bRes){
+        pasosMensuales.push(`⚡ ${bTitle}: ${bRes.title}. ${bRes.detail||''}`);
+      }
+      if(!bCPRm && !bRes && bM1?.result>0){
+        const cprStr = bM1.cpr>0 ? ` · CPR: ${fmoney(bM1.cpr,moneda)}` : '';
+        pasosMensuales.push(`✓ ${bTitle}: mes estable. ${fn(bM1.result)} ${bM1.rl||'resultados'}${cprStr}.`);
+      }
+    }
+  } else {
+  // ── OBJETIVO ÚNICO: lógica de pasos global ──
   const diagSat = allDiags.find(d=>d.title.includes('Saturación'));
   if(diagSat){
     const ctrVal = w1?.ctr?.toFixed(2)||'—';
     const cpmVal = w1?.cpm ? fmoney(w1.cpm, moneda) : '—';
-    pasos.push(`🔴 Renovar audiencias esta semana. Cuando el CTR cae y el CPM sube al mismo tiempo, Meta está mostrando el anuncio a personas que ya lo ignoraron antes — la subasta se encarece porque la relevancia de tu anuncio para esa audiencia bajó. Cuanto más tiempo pase, más caro va a costar cada resultado. CTR actual: ${ctrVal}% · CPM actual: ${cpmVal}.`);
+    pasosSemanales.push(`🔴 Renovar audiencias esta semana. Cuando el CTR cae y el CPM sube al mismo tiempo, Meta está mostrando el anuncio a personas que ya lo ignoraron antes — la subasta se encarece porque la relevancia de tu anuncio para esa audiencia bajó. Cuanto más tiempo pase, más caro va a costar cada resultado. CTR actual: ${ctrVal}% · CPM actual: ${cpmVal}.`);
   }
 
   // Fatiga creativa / frecuencia alta
@@ -3003,7 +3326,7 @@ function cerebro(acc, w1, w2, m1, m2, wD, mD, historial, perfil, objBlocks=[]){
   if(diagFreq){
     const freqVal = w1?.freq?.toFixed(1) || m1?.freq?.toFixed(1) || '—';
     const nivel = parseFloat(freqVal) >= 5 ? 'crítico' : 'de atención';
-    pasos.push(`🔴 Rotar creativos — frecuencia en nivel ${nivel} (${freqVal}x). Cuando una misma persona ve el mismo anuncio ${freqVal} veces, el cerebro empieza a ignorarlo activamente (banner blindness). Esto primero baja el CTR porque nadie hace clic en algo que ya procesó, y después Meta detecta la baja relevancia del anuncio para esa audiencia y lo castiga en la subasta subiendo el CPM. Preparar al menos 2-3 variantes nuevas del anuncio principal.`);
+    pasosSemanales.push(`🔴 Rotar creativos — frecuencia en nivel ${nivel} (${freqVal}x). Cuando una misma persona ve el mismo anuncio ${freqVal} veces, el cerebro empieza a ignorarlo activamente (banner blindness). Esto primero baja el CTR porque nadie hace clic en algo que ya procesó, y después Meta detecta la baja relevancia del anuncio para esa audiencia y lo castiga en la subasta subiendo el CPM. Preparar al menos 2-3 variantes nuevas del anuncio principal.`);
   }
 
   // CTR cayó sin CPM subiendo (problema creativo puro)
@@ -3011,7 +3334,7 @@ function cerebro(acc, w1, w2, m1, m2, wD, mD, historial, perfil, objBlocks=[]){
   if(diagCTR && !diagFreq){
     const ctrCurr = w1?.ctr?.toFixed(2)||'—';
     const ctrPrev = w2?.ctr?.toFixed(2)||'—';
-    pasos.push(`⚡ Testear nuevos creativos. El CTR bajó de ${ctrPrev}% a ${ctrCurr}% sin que suba el CPM, lo que indica que el problema está en el anuncio mismo, no en la audiencia. La oferta y la segmentación están bien, pero el creativo perdió capacidad de captar atención en el feed. Probar distinto formato (video vs imagen), distinto hook en los primeros 3 segundos, o distinto ángulo de comunicación.`);
+    pasosSemanales.push(`⚡ Testear nuevos creativos. El CTR bajó de ${ctrPrev}% a ${ctrCurr}% sin que suba el CPM, lo que indica que el problema está en el anuncio mismo, no en la audiencia. La oferta y la segmentación están bien, pero el creativo perdió capacidad de captar atención en el feed. Probar distinto formato (video vs imagen), distinto hook en los primeros 3 segundos, o distinto ángulo de comunicación.`);
   }
 
   // Costo por resultado subió
@@ -3019,7 +3342,7 @@ function cerebro(acc, w1, w2, m1, m2, wD, mD, historial, perfil, objBlocks=[]){
   if(diagCPR){
     const cprCurr = m1?.cpr ? fmoney(m1.cpr, moneda) : (w1?.cpr ? fmoney(w1.cpr, moneda) : '—');
     const cprPrev = m2?.cpr ? fmoney(m2.cpr, moneda) : (w2?.cpr ? fmoney(w2.cpr, moneda) : '—');
-    pasos.push(`🔴 Auditar conjuntos de anuncios por eficiencia. El costo por ${rlabel.toLowerCase()} pasó de ${cprPrev} a ${cprCurr} — un deterioro así suele tener una de tres causas: audiencia agotada (ya compraron o no van a comprar), creativo desgastado (baja relevancia), o mayor competencia en la subasta. Identificar los conjuntos con peor CPR, pausarlos y redirigir ese presupuesto a los que mejor están convirtiendo.`);
+    pasosMensuales.push(`🔴 Auditar conjuntos de anuncios por eficiencia. El costo por ${rlabel.toLowerCase()} pasó de ${cprPrev} a ${cprCurr} — un deterioro así suele tener una de tres causas: audiencia agotada (ya compraron o no van a comprar), creativo desgastado (baja relevancia), o mayor competencia en la subasta. Identificar los conjuntos con peor CPR, pausarlos y redirigir ese presupuesto a los que mejor están convirtiendo.`);
   }
 
   // Checkout / funnel roto
@@ -3027,14 +3350,14 @@ function cerebro(acc, w1, w2, m1, m2, wD, mD, historial, perfil, objBlocks=[]){
   if(diagCheckout){
     const icVal = m1?.ic ? fn(m1.ic) : '—';
     const purchVal = m1?.purchases ? fn(m1.purchases) : '—';
-    pasos.push(`🔴 Revisar el proceso de checkout con urgencia. Hay ${icVal} inicios de pago pero solo ${purchVal} compras — la gente llega con intención de comprar y se cae antes de completar. Las causas más comunes: demasiados pasos en el formulario, métodos de pago limitados, precio de envío que aparece tarde, o errores técnicos en mobile. Cada compra perdida en este punto es la más cara porque ya gastaste en llevar a esa persona hasta ahí.`);
+    pasosMensuales.push(`🔴 Revisar el proceso de checkout con urgencia. Hay ${icVal} inicios de pago pero solo ${purchVal} compras — la gente llega con intención de comprar y se cae antes de completar. Las causas más comunes: demasiados pasos en el formulario, métodos de pago limitados, precio de envío que aparece tarde, o errores técnicos en mobile. Cada compra perdida en este punto es la más cara porque ya gastaste en llevar a esa persona hasta ahí.`);
   }
 
   // CPC subió
   const diagCPC = allDiags.find(d=>d.title.includes('CPC subió'));
   if(diagCPC && !diagSat && !diagCPR){
     const cpcCurr = w1?.cpc ? fmoney(w1.cpc, moneda) : '—';
-    pasos.push(`⚡ Revisar calidad de anuncios. El CPC subió a ${cpcCurr} — cuando el CPC sube sin que suba la frecuencia, generalmente es porque la relevancia del anuncio para la audiencia bajó y Meta empieza a cobrar más caro por cada clic. Revisar el texto del anuncio y asegurarse de que el mensaje conecte claramente con el segmento que está viendo el anuncio.`);
+    pasosSemanales.push(`⚡ Revisar calidad de anuncios. El CPC subió a ${cpcCurr} — cuando el CPC sube sin que suba la frecuencia, generalmente es porque la relevancia del anuncio para la audiencia bajó y Meta empieza a cobrar más caro por cada clic. Revisar el texto del anuncio y asegurarse de que el mensaje conecte claramente con el segmento que está viendo el anuncio.`);
   }
 
   // Inversión cambió mucho
@@ -3042,35 +3365,37 @@ function cerebro(acc, w1, w2, m1, m2, wD, mD, historial, perfil, objBlocks=[]){
   if(diagInv){
     const pct = diagInv.title.match(/[\d.]+%/)?.[0]||'';
     const dir = diagInv.title.includes('aumentó') ? 'aumentó' : 'redujo';
-    pasos.push(`⚡ Verificar el cambio de inversión con el equipo. La inversión ${dir} ${pct} — un cambio brusco así puede distorsionar todos los demás indicadores. Si fue planificado (lanzamiento, temporada), los cambios en CPM y CTR son esperables mientras el algoritmo re-aprende. Si no fue planificado, revisar límites de gasto diario y campañas activas.`);
+    pasosMensuales.push(`⚡ Verificar el cambio de inversión con el equipo. La inversión ${dir} ${pct} — un cambio brusco así puede distorsionar todos los demás indicadores. Si fue planificado (lanzamiento, temporada), los cambios en CPM y CTR son esperables mientras el algoritmo re-aprende. Si no fue planificado, revisar límites de gasto diario y campañas activas.`);
   }
 
   // Ratio inv/fact alto
   if(useObj==='ventas' && m1?.invFact && m1.invFact > 20){
-    pasos.push(`🔴 El ratio inversión/facturación está en ${m1.invFact.toFixed(1)}% — por encima del 20% la pauta empieza a ser inviable para la mayoría de los negocios. Significa que de cada ${fmoney(100,'ARS')} que facturás, ${fmoney(m1.invFact,'ARS')} se van en publicidad. Las palancas para mejorar esto son tres: bajar el CPR (eficiencia de la pauta), subir el ticket promedio (estrategia de producto), o mejorar la tasa de conversión del sitio (CRO).`);
+    pasosMensuales.push(`🔴 El ratio inversión/facturación está en ${m1.invFact.toFixed(1)}% — por encima del 20% la pauta empieza a ser inviable para la mayoría de los negocios. Significa que de cada ${fmoney(100,'ARS')} que facturás, ${fmoney(m1.invFact,'ARS')} se van en publicidad. Las palancas para mejorar esto son tres: bajar el CPR (eficiencia de la pauta), subir el ticket promedio (estrategia de producto), o mejorar la tasa de conversión del sitio (CRO).`);
   }
 
   // Sin problemas graves — oportunidad de escala
-  if(pasos.length === 0 && wD?.risk === 'ok'){
+  if(pasosSemanales.length === 0 && wD?.risk === 'ok'){
     if(useObj==='ventas' && m1?.cpr>0){
-      pasos.push(`✓ Las métricas están saludables — este es el momento para escalar. Cuando el CPR es estable (${fmoney(m1.cpr,moneda)}) y el CTR se mantiene, significa que el sistema encontró un equilibrio. Identificar los 2-3 conjuntos con mejor CPR y subir el presupuesto diario un 20-30% para ver si escalan sin deterioro. Si el CPR se mantiene al subir el presupuesto, seguir escalando gradualmente.`);
+      pasosSemanales.push(`✓ Las métricas están saludables — este es el momento para escalar. Cuando el CPR es estable (${fmoney(m1.cpr,moneda)}) y el CTR se mantiene, significa que el sistema encontró un equilibrio. Identificar los 2-3 conjuntos con mejor CPR y subir el presupuesto diario un 20-30% para ver si escalan sin deterioro. Si el CPR se mantiene al subir el presupuesto, seguir escalando gradualmente.`);
     } else if(useObj==='leads'){
-      pasos.push(`✓ Cuenta estable — foco en calidad. Con el volumen de ${rlabel.toLowerCase()} actual (${fn(m1?.result||0)} este mes), el próximo paso es analizar qué porcentaje de esos leads se están cerrando offline. Si la tasa de cierre es baja, el problema no es la pauta sino la calificación de la audiencia o el proceso de seguimiento comercial.`);
+      pasosMensuales.push(`✓ Cuenta estable — foco en calidad. Con el volumen de ${rlabel.toLowerCase()} actual (${fn(m1?.result||0)} este mes), el próximo paso es analizar qué porcentaje de esos leads se están cerrando offline. Si la tasa de cierre es baja, el problema no es la pauta sino la calificación de la audiencia o el proceso de seguimiento comercial.`);
     } else {
-      pasos.push(`✓ Las métricas de branding están en orden. Frecuencia en ${(m1?.freq||w1?.freq||0).toFixed(1)}x y CPM estable. Evaluar si ampliar la audiencia para mantener alcance fresco sin que la frecuencia siga subiendo.`);
+      pasosMensuales.push(`✓ Las métricas de branding están en orden. Frecuencia en ${(m1?.freq||w1?.freq||0).toFixed(1)}x y CPM estable. Evaluar si ampliar la audiencia para mantener alcance fresco sin que la frecuencia siga subiendo.`);
     }
   }
 
   // Fallback genérico
-  if(pasos.length < 2){
+  if(pasosMensuales.length < 1){
     if(useObj==='leads'){
-      pasos.push(`📋 Analizar la calidad de los ${fn(m1?.result||0)} leads del mes. El volumen importa, pero lo que determina el éxito de la cuenta es cuántos de esos leads se convierten en clientes. Si la tasa de cierre baja, Meta puede estar alcanzando personas con intención de consultar pero no de comprar — revisar la segmentación y el copy del anuncio para calificar mejor.`);
+      pasosMensuales.push(`📋 Analizar la calidad de los ${fn(m1?.result||0)} leads del mes. El volumen importa, pero lo que determina el éxito de la cuenta es cuántos de esos leads se convierten en clientes. Si la tasa de cierre baja, Meta puede estar alcanzando personas con intención de consultar pero no de comprar — revisar la segmentación y el copy del anuncio para calificar mejor.`);
     }
     if(useObj==='ventas' && m1?.roas && m1.roas > 0){
       const roasMsg = m1.roas >= 4 ? `Con ROAS de ${m1.roas.toFixed(2)}x la cuenta está siendo muy rentable — hay margen para aumentar inversión y capturar más demanda antes de que la competencia lo haga.` : `ROAS de ${m1.roas.toFixed(2)}x — revisar si el margen del producto soporta este nivel de inversión o si se necesita mejorar la tasa de conversión del sitio primero.`;
-      pasos.push(`📊 ${roasMsg}`);
+      pasosMensuales.push(`📊 ${roasMsg}`);
     }
   }
+
+  } // fin else (objetivo único)
 
   // ── ALERTA PRESUPUESTO ──
   let alertaPresupuesto = null;
@@ -3086,23 +3411,109 @@ function cerebro(acc, w1, w2, m1, m2, wD, mD, historial, perfil, objBlocks=[]){
 
   // ── OPORTUNIDAD ──
   let oportunidad = null;
-  if(m1?.cpr>0 && m2?.cpr>0){
-    const mejora = ((m2.cpr - m1.cpr)/m2.cpr)*100;
-    if(mejora > 15) oportunidad = `CPR mejoró ${mejora.toFixed(1)}% vs mismo período mes anterior — buen momento para escalar presupuesto en conjuntos eficientes.`;
-  }
-  if(!oportunidad && w1?.result>0 && w2?.result>0){
-    const crec = ((w1.result-w2.result)/Math.max(w2.result,1))*100;
-    if(crec>20) oportunidad = `Volumen de ${rlabel.toLowerCase()} creció ${crec.toFixed(1)}% esta semana — revisar si se puede ampliar audiencia o aumentar presupuesto diario.`;
-  }
-  if(!oportunidad && perfil?.estacionalidad){
-    const mes = MONTH_NAMES[new Date().getMonth()];
-    if(perfil.estacionalidad.toLowerCase().includes(mes.toLowerCase())){
-      oportunidad = `El mes actual (${mes}) figura como período relevante en la estacionalidad del cliente — considerar aumentar presupuesto o intensidad.`;
+  // Para multi-objetivo: buscar el bloque con mejor performance para escalar
+  if(multiObj && objBlocks.length > 0){
+    const blockConMejorCPR = objBlocks
+      .filter(b=>b.m1?.cpr>0 && b.m2?.cpr>0)
+      .map(b=>({block:b, mejora:((b.m2.cpr-b.m1.cpr)/b.m2.cpr)*100}))
+      .filter(x=>x.mejora>10)
+      .sort((a,b)=>b.mejora-a.mejora)[0];
+    if(blockConMejorCPR){
+      const bl = blockConMejorCPR.block;
+      const bLabel = bl.meta?.label || bl.meta?.parentLabel || bl.obj;
+      oportunidad = `${bLabel} mejoró el CPR ${blockConMejorCPR.mejora.toFixed(0)}% vs mismo período mes anterior (${fmoney(bl.m2.cpr,moneda)} → ${fmoney(bl.m1.cpr,moneda)}). Cuando un objetivo mejora eficiencia, es el momento para reasignar presupuesto desde los objetivos más costosos hacia este.`;
+    }
+    if(!oportunidad){
+      const blockEstable = objBlocks.find(b=>b.m1?.result>0 && b.diagM?.risk==='ok');
+      if(blockEstable){
+        const bl = blockEstable;
+        const bLabel = bl.meta?.label || bl.meta?.parentLabel || bl.obj;
+        oportunidad = `${bLabel} está estable en eficiencia. Con CPR consolidado (${fmoney(bl.m1.cpr,moneda)}), este es el momento de testear nuevas audiencias o creativos — cuando el sistema está en equilibrio, un test controlado no rompe la performance pero puede revelar segmentos sin explotar.`;
+      }
+    }
+  } else {
+    if(m1?.cpr>0 && m2?.cpr>0){
+      const mejora = ((m2.cpr - m1.cpr)/m2.cpr)*100;
+      if(mejora > 15) oportunidad = `CPR mejoró ${mejora.toFixed(1)}% vs mismo período mes anterior (${fmoney(m2.cpr,moneda)} → ${fmoney(m1.cpr,moneda)}). Cuando la eficiencia mejora, subir el presupuesto un 20-30% para capturar más volumen antes de que la competencia reactive.`;
+    }
+    if(!oportunidad && w1?.result>0 && w2?.result>0){
+      const crec = ((w1.result-w2.result)/Math.max(w2.result,1))*100;
+      if(crec>20) oportunidad = `Volumen de ${rlabel.toLowerCase()} creció ${crec.toFixed(1)}% esta semana — la audiencia está respondiendo bien. Revisar si se puede ampliar el alcance o aumentar el presupuesto diario sin deterioro de CPR.`;
+    }
+    if(!oportunidad && perfil?.estacionalidad){
+      const mes = MONTH_NAMES[new Date().getMonth()];
+      if(perfil.estacionalidad.toLowerCase().includes(mes.toLowerCase())){
+        oportunidad = `${mes} figura como período relevante en la estacionalidad del cliente — momento para aumentar presupuesto o adelantar creativos de campaña antes de que arranque el pico de demanda.`;
+      }
+    }
+    if(!oportunidad && positives.length>0){
+      if(useObj==='ventas' && m1?.roas>=4)
+        oportunidad = `ROAS de ${m1.roas.toFixed(2)}x indica alta rentabilidad. Con este nivel de eficiencia, cada peso adicional en pauta genera retorno positivo — oportunidad para escalar antes de que la competencia detecte el mismo segmento.`;
+      else
+        oportunidad = `Métricas estables — momento para hacer un test controlado de nuevas audiencias o creativos. Cuando el sistema está en equilibrio es más fácil identificar qué variable mueve la aguja.`;
     }
   }
-  if(!oportunidad && positives.length>0) oportunidad = `Métricas estables y sin anomalías — evaluar test de nuevas audiencias o creativos para escalar resultados.`;
 
-  return { diagnostico, tendencia, pasos, alertaPresupuesto, oportunidad, perfil };
+  // ── ANÁLISIS DIFERENCIAL POR OBJETIVO ──
+  const analisisPorObjetivo = [];
+  if(objBlocks.length > 1){
+    for(const bloque of objBlocks){
+      if(!bloque.w1 && !bloque.m1) continue;
+      const bObj = bloque.obj;
+      const bOg = bloque.optimizationGoal;
+      const bMeta = bloque.meta;
+      const bMoneda = acc.moneda||'ARS';
+      const bW1 = bloque.w1, bW2 = bloque.w2, bM1 = bloque.m1, bM2 = bloque.m2;
+      const bDiagW = bloque.diagW, bDiagM = bloque.diagM;
+      const allBDiags = [...(bDiagW?.diags||[]), ...(bDiagM?.diags||[])];
+      const bCrits = allBDiags.filter(d=>d.type==='critical');
+      const bWarns = allBDiags.filter(d=>d.type==='warning');
+
+      // Pasos específicos por bloque
+      const bPasos = [];
+
+      // CPR subió
+      const dCPR = bDiagW?.diags?.find(d=>d.title.includes('subió')||d.title.includes('aumentó'));
+      if(dCPR && bW1?.cpr>0){
+        bPasos.push(`🔴 ${bMeta.label} — Costo por ${bW1.rl||bMeta.kpiLabel} subió a ${fmoney(bW1.cpr,bMoneda)}. Auditar conjuntos por eficiencia y pausar los de mayor CPR.`);
+      }
+
+      // Frecuencia alta (reconocimiento)
+      const dFreq = allBDiags.find(d=>d.title.includes('Frecuencia')||d.title.includes('Fatiga'));
+      if(dFreq){
+        const fv = bW1?.freq?.toFixed(1)||bM1?.freq?.toFixed(1)||'—';
+        bPasos.push(`🔴 ${bMeta.label} — Frecuencia ${fv}x. Ampliar audiencia o rotar creativos para evitar saturación.`);
+      }
+
+      // CTR cayó (tráfico)
+      const dCTR = allBDiags.find(d=>d.title.includes('CTR bajó'));
+      if(dCTR && bObj==='trafico'){
+        bPasos.push(`⚡ ${bMeta.label} — CTR deteriorado. Testear nuevos creativos o ajustar copy del anuncio.`);
+      }
+
+      // Volumen cayó
+      const dVol = allBDiags.find(d=>d.title.includes('Volumen')&&d.title.includes('bajó'));
+      if(dVol && bM1?.result>0){
+        bPasos.push(`⚡ ${bMeta.label} — Volumen de ${bM1.rl||bMeta.kpiLabel} cayó. Verificar presupuesto y audiencias activas.`);
+      }
+
+      // Todo OK en el bloque
+      if(bPasos.length===0 && bCrits.length===0 && bWarns.length===0){
+        bPasos.push(`✓ ${bMeta.label} — Métricas estables. ${bM1?.result>0?`${fn(bM1.result)} ${bM1.rl||bMeta.kpiLabel} este mes a ${fmoney(bM1.cpr,bMoneda)} c/u.`:''}`);
+      }
+
+      analisisPorObjetivo.push({
+        icon: bMeta.icon,
+        label: bMeta.parentLabel,
+        sublabel: bMeta.label !== bMeta.parentLabel ? bMeta.label : null,
+        pasos: bPasos,
+        diags: allBDiags.filter(d=>d.type!=='positive').slice(0,3),
+        m1: bM1, w1: bW1,
+      });
+    }
+  }
+
+  return { diagnostico, tendencia, pasosSemanales, pasosMensuales, alertaPresupuesto, oportunidad, perfil, analisisPorObjetivo };
 }
 
 function renderCerebro(el, r, acc, historial){
@@ -3165,14 +3576,6 @@ function renderCerebro(el, r, acc, historial){
     </div>`;
   }
 
-  // Próximos pasos
-  if(r.pasos?.length){
-    html += `<div class="ai-section">
-      <div class="ai-section-title">Próximos Pasos Esta Semana</div>
-      ${r.pasos.map((s,i)=>`<div class="ai-step"><div class="ai-step-num">${i+1}</div><div>${s}</div></div>`).join('')}
-    </div>`;
-  }
-
   // Oportunidad
   if(r.oportunidad){
     html += `<div class="ai-section">
@@ -3187,4 +3590,4 @@ function renderCerebro(el, r, acc, historial){
 initApp();
 </script>
 </body>
-</html>
+</
